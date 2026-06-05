@@ -4,7 +4,9 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tiyaverma/qbit-go/internal/bitfield"
@@ -13,15 +15,22 @@ import (
 	"github.com/tiyaverma/qbit-go/internal/torrent"
 )
 
+// BlockReader is implemented by storage.Manager and used by the upload handler.
+type BlockReader interface {
+	ReadBlock(index, begin, length int) ([]byte, error)
+}
+
 // ManagerStats is returned by Stats().
 type ManagerStats struct {
-	Connected    int
-	Choked       int
-	Downloading  int
-	Downloaded   int64
-	Uploaded     int64
-	DownloadRate int64
-	UploadRate   int64
+	Connected int
+	Choked    int
+	Uploaded  int64
+}
+
+// connEntry tracks a connection plus per-peer upload stats.
+type connEntry struct {
+	conn     *Conn
+	uploaded atomic.Int64 // bytes uploaded to this peer in the current window
 }
 
 // Manager maintains the peer connection pool for one torrent.
@@ -30,11 +39,12 @@ type Manager struct {
 	ourID    [20]byte
 	bf       bitfield.Bitfield
 	sched    *scheduler.Scheduler
+	storage  BlockReader
 	limiter  *ratelimit.Limiter
 	maxConns int
 
 	mu    sync.RWMutex
-	conns map[string]*Conn // addr → Conn
+	conns map[string]*connEntry // addr → entry
 
 	peers   chan []net.TCPAddr
 	work    chan *scheduler.PieceWork
@@ -42,12 +52,13 @@ type Manager struct {
 	quit    chan struct{}
 }
 
-// NewManager constructs a Manager. workQueue and results must be set up by the caller.
+// NewManager constructs a Manager.
 func NewManager(
 	tf *torrent.TorrentFile,
 	ourID [20]byte,
 	bf bitfield.Bitfield,
 	sched *scheduler.Scheduler,
+	stor BlockReader,
 	limiter *ratelimit.Limiter,
 	maxConns int,
 ) *Manager {
@@ -56,9 +67,10 @@ func NewManager(
 		ourID:    ourID,
 		bf:       bf,
 		sched:    sched,
+		storage:  stor,
 		limiter:  limiter,
 		maxConns: maxConns,
-		conns:    make(map[string]*Conn),
+		conns:    make(map[string]*connEntry),
 		peers:    make(chan []net.TCPAddr, 32),
 		work:     make(chan *scheduler.PieceWork, 256),
 		results:  make(chan *scheduler.PieceResult, 64),
@@ -66,7 +78,7 @@ func NewManager(
 	}
 }
 
-// WorkQueue returns the channel that should be loaded with PieceWork.
+// WorkQueue returns the channel for incoming PieceWork.
 func (m *Manager) WorkQueue() chan<- *scheduler.PieceWork { return m.work }
 
 // Results returns the channel that delivers completed PieceResults.
@@ -85,9 +97,37 @@ func (m *Manager) BroadcastHave(index int) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	msg := FormatHave(index)
-	for _, c := range m.conns {
-		c.Send(msg)
+	for _, e := range m.conns {
+		e.conn.Send(msg)
 	}
+}
+
+// AcceptInbound takes an already-accepted net.Conn, completes the handshake,
+// and registers it in the pool (used for inbound seeding connections).
+func (m *Manager) AcceptInbound(c net.Conn) {
+	remotePeerID, err := Handshake(c, m.tf.InfoHash, m.ourID)
+	if err != nil {
+		c.Close()
+		return
+	}
+	addr, _ := c.RemoteAddr().(*net.TCPAddr)
+	if addr == nil {
+		addr = &net.TCPAddr{}
+	}
+	conn := newConn(c, m.tf.InfoHash, remotePeerID, *addr)
+
+	m.mu.Lock()
+	if len(m.conns) >= m.maxConns {
+		m.mu.Unlock()
+		conn.Close()
+		return
+	}
+	entry := &connEntry{conn: conn}
+	m.conns[addr.String()] = entry
+	m.mu.Unlock()
+
+	conn.Send(FormatBitfield(m.bf))
+	go m.serveUpload(entry)
 }
 
 // Run is the manager's main loop; call it in a goroutine.
@@ -121,8 +161,8 @@ func (m *Manager) Stop() {
 		close(m.quit)
 	}
 	m.mu.Lock()
-	for _, c := range m.conns {
-		c.Close()
+	for _, e := range m.conns {
+		e.conn.Close()
 	}
 	m.mu.Unlock()
 }
@@ -132,14 +172,17 @@ func (m *Manager) Stats() ManagerStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	choked := 0
-	for _, c := range m.conns {
-		if c.Choked {
+	var uploaded int64
+	for _, e := range m.conns {
+		if e.conn.Choked {
 			choked++
 		}
+		uploaded += e.uploaded.Load()
 	}
 	return ManagerStats{
 		Connected: len(m.conns),
 		Choked:    choked,
+		Uploaded:  uploaded,
 	}
 }
 
@@ -156,7 +199,6 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 	go func() {
 		c, err := Dial(addr, m.tf.InfoHash, m.ourID)
 		if err != nil {
-			log.Printf("manager: dial %s: %v", addr.String(), err)
 			return
 		}
 
@@ -166,15 +208,20 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 			c.Close()
 			return
 		}
-		m.conns[addr.String()] = c
+		entry := &connEntry{conn: c}
+		m.conns[addr.String()] = entry
 		m.mu.Unlock()
 
+		// Send our current bitfield immediately after handshake.
+		c.Send(FormatBitfield(m.bf))
+
 		m.sched.AddPeerBitfield(c.Bitfield)
-		go m.downloadFromPeer(c)
+		go m.downloadFromPeer(entry)
 	}()
 }
 
-func (m *Manager) downloadFromPeer(c *Conn) {
+func (m *Manager) downloadFromPeer(e *connEntry) {
+	c := e.conn
 	defer func() {
 		m.mu.Lock()
 		delete(m.conns, c.Addr.String())
@@ -183,56 +230,129 @@ func (m *Manager) downloadFromPeer(c *Conn) {
 		c.Close()
 	}()
 
+	c.Send(&Message{ID: MsgInterested})
+	c.Interested = true
+
 	for {
-		// send Interested + wait for Unchoke
-		c.Send(&Message{ID: MsgInterested})
-		c.Interested = true
-
-		work, ok := <-m.work
-		if !ok {
-			return
-		}
-
-		data, err := c.Download(work)
-		if err != nil {
-			log.Printf("manager: download piece %d from %s: %v", work.Index, c.Addr.String(), err)
-			m.work <- work // return to queue
-			return
-		}
-
 		select {
-		case m.results <- &scheduler.PieceResult{Index: work.Index, Data: data}:
+		case work, ok := <-m.work:
+			if !ok {
+				return
+			}
+			data, err := c.Download(work)
+			if err != nil {
+				log.Printf("manager: download piece %d from %s: %v", work.Index, c.Addr.String(), err)
+				// Return work to queue so another peer can try.
+				select {
+				case m.work <- work:
+				default:
+				}
+				return
+			}
+			select {
+			case m.results <- &scheduler.PieceResult{Index: work.Index, Data: data}:
+			case <-m.quit:
+				return
+			}
 		case <-m.quit:
 			return
 		}
 	}
 }
 
+// serveUpload handles a seeding (upload-only) connection, responding to Requests.
+func (m *Manager) serveUpload(e *connEntry) {
+	c := e.conn
+	defer func() {
+		m.mu.Lock()
+		delete(m.conns, c.Addr.String())
+		m.mu.Unlock()
+		c.Close()
+	}()
+
+	// Unchoke the peer so they can request blocks from us.
+	c.Send(&Message{ID: MsgUnchoke})
+
+	for {
+		msg, err := Read(c.conn)
+		if err != nil {
+			return
+		}
+		if msg == nil {
+			continue // keepalive
+		}
+		switch msg.ID {
+		case MsgRequest:
+			if c.Choked {
+				continue
+			}
+			idx, begin, length, err := ParseRequest(msg)
+			if err != nil || m.storage == nil {
+				continue
+			}
+			block, err := m.storage.ReadBlock(idx, begin, length)
+			if err != nil {
+				continue
+			}
+			c.Send(FormatPiece(idx, begin, block))
+			e.uploaded.Add(int64(len(block)))
+		case MsgBitfield:
+			c.Bitfield = ParseBitfield(msg)
+		case MsgHave:
+			if idx, err := ParseHave(msg); err == nil {
+				c.Bitfield.SetPiece(idx)
+			}
+		case MsgInterested:
+			c.Interested = true
+		case MsgNotInterested:
+			c.Interested = false
+		}
+	}
+}
+
+// regularUnchoke implements tit-for-tat: unchoke the top 3 peers by upload rate,
+// choke the rest. Upload rate is measured over the last 10-second window.
 func (m *Manager) regularUnchoke() {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	// Simplified: unchoke all connected peers
-	// Production: rank by upload rate and unchoke top N
-	for _, c := range m.conns {
-		c.Send(&Message{ID: MsgUnchoke})
-		c.Choked = false
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	type scored struct {
+		entry    *connEntry
+		uploaded int64
+	}
+	peers := make([]scored, 0, len(m.conns))
+	for _, e := range m.conns {
+		peers = append(peers, scored{e, e.uploaded.Swap(0)})
+	}
+	sort.Slice(peers, func(i, j int) bool {
+		return peers[i].uploaded > peers[j].uploaded
+	})
+
+	const maxUnchoked = 3
+	for i, p := range peers {
+		if i < maxUnchoked {
+			p.entry.conn.Send(&Message{ID: MsgUnchoke})
+			p.entry.conn.Choked = false
+		} else {
+			p.entry.conn.Send(&Message{ID: MsgChoke})
+			p.entry.conn.Choked = true
+		}
 	}
 }
 
 func (m *Manager) optimisticUnchoke() {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	// Pick one random choked peer to unchoke
-	choked := make([]*Conn, 0)
-	for _, c := range m.conns {
-		if c.Choked {
-			choked = append(choked, c)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	choked := make([]*connEntry, 0)
+	for _, e := range m.conns {
+		if e.conn.Choked {
+			choked = append(choked, e)
 		}
 	}
 	if len(choked) == 0 {
 		return
 	}
 	pick := choked[rand.Intn(len(choked))]
-	pick.Send(&Message{ID: MsgUnchoke})
-	pick.Choked = false
+	pick.conn.Send(&Message{ID: MsgUnchoke})
+	pick.conn.Choked = false
 }

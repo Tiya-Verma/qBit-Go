@@ -1,10 +1,12 @@
 package tracker
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"net"
 	"net/url"
+	"time"
 )
 
 // ErrAllTrackersFailed is returned when every tracker in all tiers fails.
@@ -92,6 +94,37 @@ func (m *MultiTracker) Announce(event string) (*AnnounceResponse, error) {
 		}
 	}
 	return nil, ErrAllTrackersFailed
+}
+
+// AnnounceLoop periodically announces to the best available tracker and feeds
+// peer lists to the peers channel. It sends "started" on first call and
+// "stopped" when ctx is cancelled. Uses exponential backoff on failure.
+func (m *MultiTracker) AnnounceLoop(ctx context.Context, peers chan<- []net.TCPAddr) {
+	bo := newBackoff(30*time.Second, 1800*time.Second)
+	event := "started"
+	for {
+		resp, err := m.Announce(event)
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(bo.Next()):
+				continue
+			}
+		}
+		bo.Reset()
+		event = ""
+		select {
+		case peers <- resp.Peers:
+		default:
+		}
+		select {
+		case <-ctx.Done():
+			m.Announce("stopped") //nolint:errcheck
+			return
+		case <-time.After(time.Duration(resp.Interval) * time.Second):
+		}
+	}
 }
 
 // Close closes all tracker clients in all tiers.

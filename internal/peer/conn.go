@@ -110,10 +110,11 @@ func (c *Conn) Download(work *scheduler.PieceWork) ([]byte, error) {
 		case MsgUnchoke:
 			c.Choked = false
 		case MsgHave:
-			idx, err := ParseHave(msg)
-			if err == nil {
+			if idx, err := ParseHave(msg); err == nil {
 				c.Bitfield.SetPiece(idx)
 			}
+		case MsgBitfield:
+			c.Bitfield = ParseBitfield(msg)
 		case MsgPiece:
 			_, begin, data, err := ParsePiece(msg)
 			if err != nil {

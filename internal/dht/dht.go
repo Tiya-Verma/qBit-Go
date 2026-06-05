@@ -8,6 +8,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/tiyaverma/qbit-go/internal/bencode"
 )
 
 const (
@@ -313,10 +315,38 @@ func (n *Node) getPeers(addr *net.UDPAddr, infoHash [20]byte) []net.UDPAddr {
 	}
 }
 
+// parsePeersFromResponse decodes a DHT get_peers response and returns any peer addresses.
+// The response is a bencoded dict: {"t":txID, "y":"r", "r":{"id":nodeID, "values":[6-byte peers], ...}}
 func parsePeersFromResponse(data []byte) []net.UDPAddr {
-	// Simplified: real implementation would bencode-decode the response
-	_ = data
-	return nil
+	raw, err := bencode.Unmarshal(data)
+	if err != nil {
+		return nil
+	}
+	top, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	r, ok := top["r"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	values, ok := r["values"].([]interface{})
+	if !ok {
+		return nil
+	}
+	var peers []net.UDPAddr
+	for _, v := range values {
+		s, ok := v.(string)
+		if !ok || len(s) != 6 {
+			continue
+		}
+		b := []byte(s)
+		peers = append(peers, net.UDPAddr{
+			IP:   net.IP(b[0:4]),
+			Port: int(binary.BigEndian.Uint16(b[4:6])),
+		})
+	}
+	return peers
 }
 
 func buildFindNode(self, target NodeID, txID string) []byte {

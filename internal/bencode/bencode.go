@@ -8,6 +8,106 @@ import (
 	"strconv"
 )
 
+// FindInfoBytes returns the raw bencoded bytes of the "info" value in a .torrent file.
+// The SHA1 of these bytes is the torrent's info hash — computing it requires the
+// original bencoded representation, not a re-encoded version.
+func FindInfoBytes(data []byte) ([]byte, error) {
+	if len(data) < 2 || data[0] != 'd' {
+		return nil, fmt.Errorf("bencode: data is not a dict")
+	}
+	i := 1
+	for i < len(data) && data[i] != 'e' {
+		keyStart := i
+		keyEnd, err := skipValue(data, i)
+		if err != nil {
+			return nil, err
+		}
+		key := extractRawString(data[keyStart:keyEnd])
+		i = keyEnd
+
+		valStart := i
+		valEnd, err := skipValue(data, i)
+		if err != nil {
+			return nil, err
+		}
+		if key == "info" {
+			return data[valStart:valEnd], nil
+		}
+		i = valEnd
+	}
+	return nil, fmt.Errorf("bencode: 'info' key not found")
+}
+
+// skipValue returns the index of the first byte past the complete bencoded value at data[i].
+func skipValue(data []byte, i int) (int, error) {
+	if i >= len(data) {
+		return 0, fmt.Errorf("bencode: unexpected end of data at position %d", i)
+	}
+	switch {
+	case data[i] == 'i':
+		end := bytes.IndexByte(data[i:], 'e')
+		if end < 0 {
+			return 0, fmt.Errorf("bencode: unterminated integer at position %d", i)
+		}
+		return i + end + 1, nil
+	case data[i] == 'l':
+		i++
+		for i < len(data) && data[i] != 'e' {
+			var err error
+			i, err = skipValue(data, i)
+			if err != nil {
+				return 0, err
+			}
+		}
+		if i >= len(data) {
+			return 0, fmt.Errorf("bencode: unterminated list")
+		}
+		return i + 1, nil
+	case data[i] == 'd':
+		i++
+		for i < len(data) && data[i] != 'e' {
+			var err error
+			i, err = skipValue(data, i) // key
+			if err != nil {
+				return 0, err
+			}
+			i, err = skipValue(data, i) // value
+			if err != nil {
+				return 0, err
+			}
+		}
+		if i >= len(data) {
+			return 0, fmt.Errorf("bencode: unterminated dict")
+		}
+		return i + 1, nil
+	case data[i] >= '0' && data[i] <= '9':
+		colon := bytes.IndexByte(data[i:], ':')
+		if colon < 0 {
+			return 0, fmt.Errorf("bencode: invalid string at position %d", i)
+		}
+		length, err := strconv.Atoi(string(data[i : i+colon]))
+		if err != nil {
+			return 0, err
+		}
+		end := i + colon + 1 + length
+		if end > len(data) {
+			return 0, fmt.Errorf("bencode: string extends past end of data")
+		}
+		return end, nil
+	default:
+		return 0, fmt.Errorf("bencode: unknown type byte %q at position %d", data[i], i)
+	}
+}
+
+// extractRawString returns the string content of a bencoded string like "4:spam" → "spam".
+func extractRawString(data []byte) string {
+	colon := bytes.IndexByte(data, ':')
+	if colon < 0 {
+		return ""
+	}
+	return string(data[colon+1:])
+}
+
 // Unmarshal decodes a bencoded byte slice into a Go value.
 // Supported target types: map[string]interface{}, []interface{}, int64, string.
 func Unmarshal(data []byte) (interface{}, error) {

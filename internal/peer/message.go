@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/tiyaverma/qbit-go/internal/bitfield"
 )
 
 // MessageID identifies a peer wire protocol message type.
@@ -60,6 +62,29 @@ func (m *Message) Serialize() []byte {
 	buf[4] = byte(m.ID)
 	copy(buf[5:], m.Payload)
 	return buf
+}
+
+// FormatBitfield builds a Bitfield message from our current piece possession.
+func FormatBitfield(bf bitfield.Bitfield) *Message {
+	payload := make([]byte, len(bf))
+	copy(payload, bf)
+	return &Message{ID: MsgBitfield, Payload: payload}
+}
+
+// ParseBitfield decodes a Bitfield message into a Bitfield.
+func ParseBitfield(msg *Message) bitfield.Bitfield {
+	bf := make(bitfield.Bitfield, len(msg.Payload))
+	copy(bf, msg.Payload)
+	return bf
+}
+
+// FormatPiece builds a Piece response message (used when uploading to a peer).
+func FormatPiece(index, begin int, data []byte) *Message {
+	payload := make([]byte, 8+len(data))
+	binary.BigEndian.PutUint32(payload[0:4], uint32(index))
+	binary.BigEndian.PutUint32(payload[4:8], uint32(begin))
+	copy(payload[8:], data)
+	return &Message{ID: MsgPiece, Payload: payload}
 }
 
 // FormatHave builds a Have message for pieceIndex.

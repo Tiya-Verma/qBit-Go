@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tiyaverma/qbit-go/internal/bencode"
 	"github.com/tiyaverma/qbit-go/internal/bitfield"
 )
 
@@ -111,16 +112,34 @@ type FileState struct {
 	Skip     bool
 }
 
-// ParseFile decodes a .torrent file from its raw bencoded map.
-func ParseFile(raw map[string]interface{}) (*TorrentFile, error) {
-	tf := &TorrentFile{}
+// ParseFile decodes a .torrent file from its raw bencoded bytes.
+// The info hash is computed by SHA1-hashing the raw bencoded info dict,
+// which is the only correct approach (re-encoding after decoding may differ).
+func ParseFile(data []byte) (*TorrentFile, error) {
+	// Compute info hash from the raw bytes before any decoding.
+	infoBytes, err := bencode.FindInfoBytes(data)
+	if err != nil {
+		return nil, fmt.Errorf("torrent: %w", err)
+	}
+	infoHash := sha1.Sum(infoBytes)
 
-	if announce, ok := raw["announce"].(string); ok {
+	raw, err := bencode.Unmarshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("torrent: bencode decode: %w", err)
+	}
+	dict, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("torrent: not a bencoded dict")
+	}
+
+	tf := &TorrentFile{InfoHash: infoHash}
+
+	if announce, ok := dict["announce"].(string); ok {
 		tf.Announce = announce
 	}
 
-	if info, ok := raw["info"].(map[string]interface{}); ok {
-		if err := parseInfo(tf, info, raw); err != nil {
+	if info, ok := dict["info"].(map[string]interface{}); ok {
+		if err := parseInfo(tf, info); err != nil {
 			return nil, err
 		}
 	} else {
@@ -128,7 +147,7 @@ func ParseFile(raw map[string]interface{}) (*TorrentFile, error) {
 	}
 
 	// BEP 12 announce-list
-	if list, ok := raw["announce-list"].([]interface{}); ok {
+	if list, ok := dict["announce-list"].([]interface{}); ok {
 		for _, tier := range list {
 			if tierList, ok := tier.([]interface{}); ok {
 				var urls []string
@@ -145,7 +164,7 @@ func ParseFile(raw map[string]interface{}) (*TorrentFile, error) {
 	return tf, nil
 }
 
-func parseInfo(tf *TorrentFile, info map[string]interface{}, raw map[string]interface{}) error {
+func parseInfo(tf *TorrentFile, info map[string]interface{}) error {
 	if name, ok := info["name"].(string); ok {
 		tf.Name = name
 	}
@@ -194,25 +213,7 @@ func parseInfo(tf *TorrentFile, info map[string]interface{}, raw map[string]inte
 		}
 	}
 
-	// Compute info hash
-	infoHash, err := hashInfo(info)
-	if err != nil {
-		return err
-	}
-	tf.InfoHash = infoHash
-
 	return nil
-}
-
-func hashInfo(info map[string]interface{}) ([20]byte, error) {
-	// Re-encode the info dict to compute its SHA1
-	// In production this would re-encode the raw bytes; here we use a placeholder
-	_ = info
-	h := sha1.New()
-	// TODO: encode info dict back to bencode and hash
-	var result [20]byte
-	copy(result[:], h.Sum(nil))
-	return result, nil
 }
 
 // InfoHashString returns the info hash as a lowercase hex string.

@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"io"
+	"net"
 	"sync"
 
-	"github.com/tiyaverma/qbit-go/internal/bencode"
 	"github.com/tiyaverma/qbit-go/internal/bitfield"
 	"github.com/tiyaverma/qbit-go/internal/dht"
 	"github.com/tiyaverma/qbit-go/internal/peer"
@@ -87,15 +88,7 @@ func (e *Engine) Add(r io.Reader) (*torrent.Torrent, error) {
 	if err != nil {
 		return nil, err
 	}
-	raw, err := bencode.Unmarshal(data)
-	if err != nil {
-		return nil, fmt.Errorf("engine: bencode decode: %w", err)
-	}
-	dict, ok := raw.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("engine: not a bencoded dict")
-	}
-	tf, err := torrent.ParseFile(dict)
+	tf, err := torrent.ParseFile(data)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +229,7 @@ func (e *Engine) startSession(tf *torrent.TorrentFile) (*torrent.Torrent, error)
 	}
 	mt := tracker.NewMultiTracker(tf.AnnounceList, params)
 
-	mgr := peer.NewManager(tf, e.peerID, bf, sched, e.limiter, e.cfg.MaxPerTorrent)
+	mgr := peer.NewManager(tf, e.peerID, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
 
 	t := torrent.New(*tf, bf, e.cfg.DownloadDir)
 	sess := &session{
@@ -257,12 +250,33 @@ func (e *Engine) startSession(tf *torrent.TorrentFile) (*torrent.Torrent, error)
 }
 
 func (e *Engine) runSession(sess *session) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	sess.t.State = torrent.StateDownloading
 	work := sess.sched.WorkQueue()
 
+	// Start peer manager (handles dialing and choking).
 	go sess.peers.Run()
 
-	// feed work to peers
+	// Listen for inbound peer connections on the configured port.
+	go e.acceptInbound(ctx, sess)
+
+	// Feed tracker-discovered peers to the manager.
+	peersCh := make(chan []net.TCPAddr, 8)
+	go sess.tracker.AnnounceLoop(ctx, peersCh)
+	go func() {
+		for {
+			select {
+			case batch := <-peersCh:
+				sess.peers.AddPeers(batch)
+			case <-sess.quit:
+				return
+			}
+		}
+	}()
+
+	// Feed outstanding piece work to the peer manager.
 	go func() {
 		for {
 			select {
@@ -270,28 +284,56 @@ func (e *Engine) runSession(sess *session) {
 				if !ok {
 					return
 				}
-				sess.peers.WorkQueue() <- w
+				select {
+				case sess.peers.WorkQueue() <- w:
+				case <-sess.quit:
+					return
+				}
 			case <-sess.quit:
 				return
 			}
 		}
 	}()
 
-	// collect results
+	// Collect verified piece results and write to disk.
 	for {
 		select {
 		case result := <-sess.peers.Results():
 			if err := sess.storage.WritePiece(result.Index, result.Data); err != nil {
+				// Hash mismatch: return piece to work queue.
+				sess.sched.ReturnWork(result.Index)
 				continue
 			}
 			sess.sched.MarkComplete(result.Index)
 			sess.peers.BroadcastHave(result.Index)
-			if sess.sched.Stats().PiecesComplete == sess.sched.Stats().PiecesTotal {
+			stats := sess.sched.Stats()
+			if stats.PiecesComplete == stats.PiecesTotal {
 				sess.t.State = torrent.StateSeeding
+				cancel()
 				return
 			}
 		case <-sess.quit:
+			cancel()
 			return
 		}
+	}
+}
+
+// acceptInbound listens for inbound peer connections and hands them to the manager.
+func (e *Engine) acceptInbound(ctx context.Context, sess *session) {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", e.cfg.ListenPort))
+	if err != nil {
+		return
+	}
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		go sess.peers.AcceptInbound(conn)
 	}
 }
