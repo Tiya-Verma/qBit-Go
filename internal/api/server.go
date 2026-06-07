@@ -1,9 +1,11 @@
 package api
 
 import (
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +17,9 @@ import (
 	"github.com/tiyaverma/qbit-go/internal/engine"
 	"github.com/tiyaverma/qbit-go/internal/torrent"
 )
+
+//go:embed all:ui
+var uiFS embed.FS
 
 // Server is the HTTP + WebSocket API server.
 type Server struct {
@@ -49,6 +54,20 @@ func New(eng *engine.Engine) *Server {
 		r.Get("/settings", s.getSettings)
 		r.Patch("/settings", s.updateSettings)
 	})
+
+	// Serve the React SPA. Any path not matched by /api/v1 falls through here;
+	// unknown routes return index.html so the client-side router can handle them.
+	sub, err := fs.Sub(uiFS, "ui")
+	if err == nil {
+		fileServer := http.FileServer(http.FS(sub))
+		r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
+			// If the requested file exists, serve it; otherwise serve index.html.
+			if _, err := sub.(fs.StatFS).Stat(strings.TrimPrefix(req.URL.Path, "/")); err != nil {
+				req.URL.Path = "/"
+			}
+			fileServer.ServeHTTP(w, req)
+		})
+	}
 
 	s.router = r
 	return s
