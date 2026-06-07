@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-This repository currently contains design specifications only — no source code has been written yet. The `.md` files at the root are module-level architecture documents. Implementation goes under the package structure described below.
+Active implementation — all core packages are written and the client can download torrents end-to-end. Completed: bencode parser, torrent parsing (correct info hash), peer wire protocol, piece scheduler, storage, tracker (HTTP/UDP), DHT (BEP 5 including `announce_peer` and serving inbound queries), choking/unchoking, seeding/upload, and bbolt persistence (fast resume). Still pending: magnet link support (BEP 9), PEX (BEP 11), and the React web UI.
 
 ## Commands
 
@@ -80,10 +80,10 @@ The only shared mutable state across goroutines:
 ### Persistence
 
 bbolt buckets:
-- `torrents` — `InfoHash → msgpack(TorrentRecord)` for restart restoration
-- `fastresume` — `InfoHash → msgpack(FastResume{Bitfield, FileStates})` written every 30s and on shutdown
+- `torrents` — `InfoHash → JSON(TorrentRecord{Data, DownloadDir, AddedAt})` for restart restoration
+- `fastresume` — `InfoHash → raw bitfield bytes` written every 30s and on shutdown
 
-DHT routing table is saved every 15 minutes and on shutdown to avoid bootstrap delay on restart.
+`engine.RestoreFromDB()` is called at startup (after `engine.New()`) to reload all previously added torrents.
 
 ### API
 
@@ -96,6 +96,6 @@ All REST endpoints are under `/api/v1`. The WebSocket endpoint (`GET /api/v1/ws`
 | Router | `chi` |
 | WebSocket | `gorilla/websocket` |
 | KV store | `bbolt` |
-| Serialization | `msgpack` (persistence), `bencode` (protocol) |
+| Serialization | `encoding/json` (persistence), `bencode` (protocol) |
 | Testing | `testify`, table-driven |
 | Frontend | React + Tailwind CSS |
