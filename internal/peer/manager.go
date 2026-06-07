@@ -127,6 +127,7 @@ func (m *Manager) AcceptInbound(c net.Conn) {
 	m.mu.Unlock()
 
 	conn.Send(FormatBitfield(m.bf))
+	go m.tryStartPEX(conn)
 	go m.serveUpload(entry)
 }
 
@@ -212,10 +213,10 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 		m.conns[addr.String()] = entry
 		m.mu.Unlock()
 
-		// Send our current bitfield immediately after handshake.
 		c.Send(FormatBitfield(m.bf))
-
 		m.sched.AddPeerBitfield(c.Bitfield)
+
+		go m.tryStartPEX(c)
 		go m.downloadFromPeer(entry)
 	}()
 }
@@ -306,8 +307,83 @@ func (m *Manager) serveUpload(e *connEntry) {
 			c.Interested = true
 		case MsgNotInterested:
 			c.Interested = false
+		case MsgExtended:
+			if len(msg.Payload) >= 2 && msg.Payload[0] == extHandshakeMsgID {
+				_, peerPEXID := parseExtHandshakeIDs(msg.Payload[1:])
+				if peerPEXID != 0 {
+					// Peer sent their ext handshake; we respond with ours and start PEX.
+					c.Send(&Message{
+						ID:      MsgExtended,
+						Payload: append([]byte{extHandshakeMsgID}, buildOurExtHandshake()...),
+					})
+					go runPEX(c, &pexState{
+						peerPEXExtID: peerPEXID,
+						lastKnown:    make(map[string]net.TCPAddr),
+					}, m.getConnectedAddrs)
+				}
+			} else if len(msg.Payload) >= 2 && msg.Payload[0] == ourPEXExtID {
+				peers, err := ParsePEXPeers(msg.Payload[1:])
+				if err == nil && len(peers) > 0 {
+					m.AddPeers(peers)
+				}
+			}
 		}
 	}
+}
+
+// tryStartPEX sends our extension handshake to a freshly connected peer and,
+// if the peer replies supporting ut_pex, starts the periodic PEX goroutine.
+func (m *Manager) tryStartPEX(c *Conn) {
+	c.Send(&Message{
+		ID:      MsgExtended,
+		Payload: append([]byte{extHandshakeMsgID}, buildOurExtHandshake()...),
+	})
+	// The peer's response is handled in the read loop (serveUpload / downloadFromPeer).
+	// For download connections the MsgExtended case in Download() will surface it.
+	// For PEX to work on outbound download connections, we watch for the response here.
+	for {
+		select {
+		case <-c.quit:
+			return
+		default:
+		}
+		msg, err := Read(c.conn)
+		if err != nil {
+			return
+		}
+		if msg == nil {
+			continue
+		}
+		if msg.ID == MsgExtended && len(msg.Payload) >= 2 && msg.Payload[0] == extHandshakeMsgID {
+			_, peerPEXID := parseExtHandshakeIDs(msg.Payload[1:])
+			if peerPEXID != 0 {
+				go runPEX(c, &pexState{
+					peerPEXExtID: peerPEXID,
+					lastKnown:    make(map[string]net.TCPAddr),
+				}, m.getConnectedAddrs)
+			}
+			return
+		}
+		// If the peer sends a PEX message instead of a handshake first, handle it.
+		if msg.ID == MsgExtended && len(msg.Payload) >= 2 && msg.Payload[0] == ourPEXExtID {
+			peers, err := ParsePEXPeers(msg.Payload[1:])
+			if err == nil && len(peers) > 0 {
+				m.AddPeers(peers)
+			}
+			return
+		}
+	}
+}
+
+// getConnectedAddrs returns the TCP addresses of all currently connected peers.
+func (m *Manager) getConnectedAddrs() []net.TCPAddr {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	addrs := make([]net.TCPAddr, 0, len(m.conns))
+	for _, e := range m.conns {
+		addrs = append(addrs, e.conn.Addr)
+	}
+	return addrs
 }
 
 // regularUnchoke implements tit-for-tat: unchoke the top 3 peers by upload rate,

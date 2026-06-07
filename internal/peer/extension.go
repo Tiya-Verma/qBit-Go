@@ -37,9 +37,10 @@ func FetchMetadata(addr net.TCPAddr, infoHash, ourID [20]byte) ([]byte, error) {
 		return nil, fmt.Errorf("peer: Extension Protocol not supported")
 	}
 
-	// Send our extension handshake advertising ut_metadata as local ID ourMetaExtID.
-	// d1:md11:ut_metadatai2eee
-	extHs := []byte(fmt.Sprintf("d1:md11:ut_metadatai%deee", ourMetaExtID))
+	// Send our extension handshake advertising ut_metadata and ut_pex.
+	// Keys sorted: m (only key at top level). Inner keys: ut_metadata < ut_pex.
+	// d1:md11:ut_metadatai2e6:ut_pexi3eee
+	extHs := buildOurExtHandshake()
 	if err := sendExtMsg(conn, extHandshakeMsgID, extHs); err != nil {
 		return nil, fmt.Errorf("peer: send ext handshake: %w", err)
 	}
@@ -65,7 +66,7 @@ func FetchMetadata(addr net.TCPAddr, infoHash, ourID [20]byte) ([]byte, error) {
 
 // recvExtHandshake reads messages until it finds the peer's BEP 10 extension
 // handshake (MsgExtended, ext ID 0), then extracts the peer's ut_metadata ID
-// and the total metadata_size.
+// and the total metadata_size. Used only by FetchMetadata (magnet flow).
 func recvExtHandshake(conn net.Conn) (peerMetaExtID uint8, metadataSize int, err error) {
 	for {
 		msg, err := Read(conn)
@@ -76,39 +77,25 @@ func recvExtHandshake(conn net.Conn) (peerMetaExtID uint8, metadataSize int, err
 			continue
 		}
 		if msg.Payload[0] != extHandshakeMsgID {
-			continue // not the handshake, skip
+			continue
 		}
+
+		peerMetaExtID, _ = parseExtHandshakeIDs(msg.Payload[1:])
 
 		raw, err := bencode.Unmarshal(msg.Payload[1:])
 		if err != nil {
 			return 0, 0, fmt.Errorf("peer: parse ext handshake: %w", err)
 		}
-		hs, ok := raw.(map[string]interface{})
-		if !ok {
-			return 0, 0, fmt.Errorf("peer: ext handshake not a dict")
-		}
-
-		m, _ := hs["m"].(map[string]interface{})
-		if m == nil {
-			return 0, 0, fmt.Errorf("peer: no m dict in ext handshake")
-		}
-		metaIDRaw, ok := m["ut_metadata"]
-		if !ok {
-			return 0, 0, fmt.Errorf("peer: peer does not support ut_metadata")
-		}
-		switch v := metaIDRaw.(type) {
-		case int64:
-			peerMetaExtID = uint8(v)
-		}
-
-		if sz, ok := hs["metadata_size"].(int64); ok {
-			metadataSize = int(sz)
+		if hs, ok := raw.(map[string]interface{}); ok {
+			if sz, ok := hs["metadata_size"].(int64); ok {
+				metadataSize = int(sz)
+			}
 		}
 		break
 	}
 
 	if peerMetaExtID == 0 {
-		return 0, 0, fmt.Errorf("peer: invalid ut_metadata extension ID 0")
+		return 0, 0, fmt.Errorf("peer: peer does not support ut_metadata")
 	}
 	if metadataSize <= 0 || metadataSize > maxMetadataSize {
 		return 0, 0, fmt.Errorf("peer: invalid metadata_size %d", metadataSize)
@@ -184,6 +171,40 @@ func recvMetaPiece(conn net.Conn, wantPiece int) ([]byte, error) {
 			return pieceBytes, nil
 		}
 	}
+}
+
+// buildOurExtHandshake returns the bencoded payload for our BEP 10 extension
+// handshake, advertising both ut_metadata (ID 2) and ut_pex (ID 3).
+// d1:md11:ut_metadatai2e6:ut_pexi3eee  — keys sorted lexicographically.
+func buildOurExtHandshake() []byte {
+	return []byte(fmt.Sprintf(
+		"d1:md11:ut_metadatai%de6:ut_pexi%deee",
+		ourMetaExtID, ourPEXExtID,
+	))
+}
+
+// parseExtHandshakeIDs parses a peer's BEP 10 extension handshake payload
+// and returns the peer's local IDs for ut_metadata and ut_pex (0 if not present).
+func parseExtHandshakeIDs(payload []byte) (peerMetaID, peerPEXID uint8) {
+	raw, err := bencode.Unmarshal(payload)
+	if err != nil {
+		return 0, 0
+	}
+	hs, ok := raw.(map[string]interface{})
+	if !ok {
+		return 0, 0
+	}
+	m, _ := hs["m"].(map[string]interface{})
+	if m == nil {
+		return 0, 0
+	}
+	if v, ok := m["ut_metadata"].(int64); ok {
+		peerMetaID = uint8(v)
+	}
+	if v, ok := m["ut_pex"].(int64); ok {
+		peerPEXID = uint8(v)
+	}
+	return peerMetaID, peerPEXID
 }
 
 // sendExtMsg writes a MsgExtended frame: [ext_id][payload].
