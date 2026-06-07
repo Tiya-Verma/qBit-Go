@@ -7,6 +7,9 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
+
+	bolt "go.etcd.io/bbolt"
 
 	"github.com/tiyaverma/qbit-go/internal/bitfield"
 	"github.com/tiyaverma/qbit-go/internal/dht"
@@ -45,6 +48,7 @@ type Engine struct {
 	mu       sync.RWMutex
 	sessions map[[20]byte]*session
 
+	db      *bolt.DB
 	dht     *dht.Node
 	limiter *ratelimit.Limiter
 	cfg     *Config
@@ -66,6 +70,14 @@ func New(cfg *Config) (*Engine, error) {
 		limiter:  ratelimit.New(cfg.GlobalDownSpeed, cfg.GlobalUpSpeed),
 		cfg:      cfg,
 		peerID:   peerID,
+	}
+
+	if cfg.DBPath != "" {
+		db, err := openDB(cfg.DBPath)
+		if err != nil {
+			return nil, fmt.Errorf("engine: open db: %w", err)
+		}
+		e.db = db
 	}
 
 	if cfg.DHTEnabled {
@@ -100,7 +112,13 @@ func (e *Engine) Add(r io.Reader) (*torrent.Torrent, error) {
 	}
 	e.mu.Unlock()
 
-	return e.startSession(tf)
+	addedAt := time.Now()
+	t, err := e.startSession(tf, data, bitfield.New(tf.PieceCount()), e.cfg.DownloadDir, addedAt)
+	if err != nil {
+		return nil, err
+	}
+	e.dbPutTorrent(tf.InfoHash, data, e.cfg.DownloadDir, addedAt)
+	return t, nil
 }
 
 // Remove stops and optionally deletes a torrent's files.
@@ -117,6 +135,7 @@ func (e *Engine) Remove(infoHash [20]byte, deleteFiles bool) error {
 	close(sess.quit)
 	sess.peers.Stop()
 	sess.storage.Close()
+	e.dbDeleteTorrent(infoHash)
 	return nil
 }
 
@@ -198,19 +217,28 @@ func (e *Engine) Shutdown() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, sess := range e.sessions {
+		e.dbSaveFastResume(sess)
 		sess.peers.Stop()
 		sess.storage.Close()
 	}
 	if e.dht != nil {
 		e.dht.Close()
 	}
+	if e.db != nil {
+		e.db.Close()
+	}
 	return nil
 }
 
-func (e *Engine) startSession(tf *torrent.TorrentFile) (*torrent.Torrent, error) {
-	bf := bitfield.New(tf.PieceCount())
+func (e *Engine) startSession(tf *torrent.TorrentFile, _ []byte, bf bitfield.Bitfield, dir string, addedAt time.Time) (*torrent.Torrent, error) {
+	if dir == "" {
+		dir = e.cfg.DownloadDir
+	}
+	if addedAt.IsZero() {
+		addedAt = time.Now()
+	}
 
-	stor := storage.NewManager(tf, e.cfg.DownloadDir)
+	stor := storage.NewManager(tf, dir)
 	if err := stor.Init(); err != nil {
 		return nil, fmt.Errorf("engine: init storage: %w", err)
 	}
@@ -231,7 +259,7 @@ func (e *Engine) startSession(tf *torrent.TorrentFile) (*torrent.Torrent, error)
 
 	mgr := peer.NewManager(tf, e.peerID, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
 
-	t := torrent.New(*tf, bf, e.cfg.DownloadDir)
+	t := torrent.New(*tf, bf, dir)
 	sess := &session{
 		t:       t,
 		storage: stor,
@@ -295,6 +323,9 @@ func (e *Engine) runSession(sess *session) {
 		}
 	}()
 
+	fastResumeTicker := time.NewTicker(30 * time.Second)
+	defer fastResumeTicker.Stop()
+
 	// Collect verified piece results and write to disk.
 	for {
 		select {
@@ -308,10 +339,13 @@ func (e *Engine) runSession(sess *session) {
 			sess.peers.BroadcastHave(result.Index)
 			stats := sess.sched.Stats()
 			if stats.PiecesComplete == stats.PiecesTotal {
+				e.dbSaveFastResume(sess)
 				sess.t.State = torrent.StateSeeding
 				cancel()
 				return
 			}
+		case <-fastResumeTicker.C:
+			e.dbSaveFastResume(sess)
 		case <-sess.quit:
 			cancel()
 			return
