@@ -130,8 +130,20 @@ func (s *Server) addTorrent(w http.ResponseWriter, r *http.Request) {
 			apiError(w, http.StatusBadRequest, "provide a .torrent file or magnet JSON", "BAD_REQUEST")
 			return
 		}
-		_ = body // magnet support: TODO
-		apiError(w, http.StatusNotImplemented, "magnet links not yet implemented", "NOT_IMPLEMENTED")
+		if body.Magnet == "" {
+			apiError(w, http.StatusBadRequest, "magnet field is required", "BAD_REQUEST")
+			return
+		}
+		t, err := s.engine.AddMagnet(body.Magnet)
+		if err != nil {
+			if strings.Contains(err.Error(), "already added") {
+				apiError(w, http.StatusConflict, err.Error(), "ALREADY_EXISTS")
+				return
+			}
+			apiError(w, http.StatusBadRequest, err.Error(), "BAD_REQUEST")
+			return
+		}
+		writeJSON(w, http.StatusAccepted, toSummary(t))
 		return
 	}
 

@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"fmt"
 	"time"
@@ -214,6 +215,45 @@ func parseInfo(tf *TorrentFile, info map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+// ParseInfoDict parses a raw bencoded info dict (not a full .torrent file) into
+// a TorrentFile. Used for magnet links after fetching metadata via BEP 9.
+func ParseInfoDict(infoBytes []byte) (*TorrentFile, error) {
+	infoHash := sha1.Sum(infoBytes)
+	raw, err := bencode.Unmarshal(infoBytes)
+	if err != nil {
+		return nil, fmt.Errorf("torrent: decode info dict: %w", err)
+	}
+	info, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("torrent: info dict is not a dict")
+	}
+	tf := &TorrentFile{InfoHash: infoHash}
+	return tf, parseInfo(tf, info)
+}
+
+// WrapInfoDict wraps raw bencoded info dict bytes into a minimal .torrent
+// structure (with optional announce-list) so it can be re-parsed by ParseFile
+// and stored in the database.
+func WrapInfoDict(infoBytes []byte, announceList [][]string) []byte {
+	var buf bytes.Buffer
+	buf.WriteString("d")
+	if len(announceList) > 0 {
+		buf.WriteString("13:announce-listl")
+		for _, tier := range announceList {
+			buf.WriteString("l")
+			for _, u := range tier {
+				fmt.Fprintf(&buf, "%d:%s", len(u), u)
+			}
+			buf.WriteString("e")
+		}
+		buf.WriteString("e")
+	}
+	buf.WriteString("4:info")
+	buf.Write(infoBytes)
+	buf.WriteString("e")
+	return buf.Bytes()
 }
 
 // InfoHashString returns the info hash as a lowercase hex string.

@@ -42,25 +42,43 @@ func buildHandshake(infoHash, peerID [20]byte) []byte {
 	return buf
 }
 
+// handshakeFull performs the BitTorrent handshake and also returns the remote
+// peer's 8 reserved extension bytes so the caller can inspect BEP 10 support.
+func handshakeFull(conn net.Conn, infoHash, peerID [20]byte) ([20]byte, [8]byte, error) {
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
+	defer conn.SetDeadline(time.Time{})
+	if err := sendHandshake(conn, infoHash, peerID); err != nil {
+		return [20]byte{}, [8]byte{}, fmt.Errorf("peer: send handshake: %w", err)
+	}
+	return recvHandshakeFull(conn, infoHash)
+}
+
 func sendHandshake(w io.Writer, infoHash, peerID [20]byte) error {
 	_, err := w.Write(buildHandshake(infoHash, peerID))
 	return err
 }
 
 func recvHandshake(r io.Reader, expectedHash [20]byte) ([20]byte, error) {
+	id, _, err := recvHandshakeFull(r, expectedHash)
+	return id, err
+}
+
+func recvHandshakeFull(r io.Reader, expectedHash [20]byte) ([20]byte, [8]byte, error) {
 	buf := make([]byte, handshakeLen)
 	if _, err := io.ReadFull(r, buf); err != nil {
-		return [20]byte{}, err
+		return [20]byte{}, [8]byte{}, err
 	}
 	if buf[0] != byte(len(protocolString)) || string(buf[1:20]) != protocolString {
-		return [20]byte{}, fmt.Errorf("peer: invalid protocol string")
+		return [20]byte{}, [8]byte{}, fmt.Errorf("peer: invalid protocol string")
 	}
+	var extFlags [8]byte
+	copy(extFlags[:], buf[20:28])
 	var remoteHash [20]byte
 	copy(remoteHash[:], buf[28:48])
 	if remoteHash != expectedHash {
-		return [20]byte{}, ErrInfoHashMismatch
+		return [20]byte{}, [8]byte{}, ErrInfoHashMismatch
 	}
 	var remotePeerID [20]byte
 	copy(remotePeerID[:], buf[48:68])
-	return remotePeerID, nil
+	return remotePeerID, extFlags, nil
 }

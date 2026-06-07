@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/tiyaverma/qbit-go/internal/bitfield"
 	"github.com/tiyaverma/qbit-go/internal/dht"
+	"github.com/tiyaverma/qbit-go/internal/magnet"
 	"github.com/tiyaverma/qbit-go/internal/peer"
 	"github.com/tiyaverma/qbit-go/internal/ratelimit"
 	"github.com/tiyaverma/qbit-go/internal/scheduler"
@@ -118,6 +120,203 @@ func (e *Engine) Add(r io.Reader) (*torrent.Torrent, error) {
 		return nil, err
 	}
 	e.dbPutTorrent(tf.InfoHash, data, e.cfg.DownloadDir, addedAt)
+	return t, nil
+}
+
+// AddMagnet parses a magnet URI and starts fetching metadata via DHT + BEP 9.
+// Returns immediately with a placeholder Torrent in StateFetching; the torrent
+// transitions to StateDownloading once the info dict has been retrieved.
+func (e *Engine) AddMagnet(uri string) (*torrent.Torrent, error) {
+	m, err := magnet.Parse(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	e.mu.Lock()
+	if _, exists := e.sessions[m.InfoHash]; exists {
+		e.mu.Unlock()
+		return nil, fmt.Errorf("engine: torrent already added")
+	}
+	t := &torrent.Torrent{
+		File:    torrent.TorrentFile{InfoHash: m.InfoHash, Name: m.Name},
+		State:   torrent.StateFetching,
+		AddedAt: time.Now(),
+	}
+	placeholder := &session{t: t, quit: make(chan struct{})}
+	e.sessions[m.InfoHash] = placeholder
+	e.mu.Unlock()
+
+	go e.fetchMetadata(placeholder, m)
+	return t, nil
+}
+
+// fetchMetadata runs in a goroutine: discovers peers, fetches the info dict via
+// BEP 9, then promotes the placeholder session to a full download session.
+func (e *Engine) fetchMetadata(placeholder *session, m *magnet.Magnet) {
+	peers := e.peersForMagnet(m)
+	if len(peers) == 0 {
+		log.Printf("engine: magnet %x: no peers found", m.InfoHash)
+		placeholder.t.State = torrent.StateError
+		return
+	}
+
+	type result struct{ data []byte }
+	resultCh := make(chan result, 1)
+	sem := make(chan struct{}, 3)
+
+	for _, addr := range peers {
+		select {
+		case <-placeholder.quit:
+			return
+		case sem <- struct{}{}:
+		}
+		go func(a net.TCPAddr) {
+			defer func() { <-sem }()
+			data, err := peer.FetchMetadata(a, m.InfoHash, e.peerID)
+			if err != nil {
+				return
+			}
+			select {
+			case resultCh <- result{data}:
+			default:
+			}
+		}(addr)
+	}
+
+	var infoBytes []byte
+	select {
+	case r := <-resultCh:
+		infoBytes = r.data
+	case <-placeholder.quit:
+		return
+	case <-time.After(2 * time.Minute):
+		log.Printf("engine: magnet %x: metadata fetch timed out", m.InfoHash)
+		placeholder.t.State = torrent.StateError
+		return
+	}
+
+	tf, err := torrent.ParseInfoDict(infoBytes)
+	if err != nil {
+		log.Printf("engine: magnet %x: parse info dict: %v", m.InfoHash, err)
+		placeholder.t.State = torrent.StateError
+		return
+	}
+	if len(m.Trackers) > 0 {
+		tf.AnnounceList = [][]string{m.Trackers}
+	}
+
+	// Check the torrent hasn't been removed while we were fetching.
+	e.mu.RLock()
+	current, ok := e.sessions[m.InfoHash]
+	e.mu.RUnlock()
+	if !ok || current != placeholder {
+		return
+	}
+
+	// Remove placeholder so startSession can insert the real session.
+	e.mu.Lock()
+	delete(e.sessions, m.InfoHash)
+	e.mu.Unlock()
+
+	addedAt := placeholder.t.AddedAt
+	bf := bitfield.New(tf.PieceCount())
+	_, err = e.startSessionReusing(placeholder.t, tf, infoBytes, bf, e.cfg.DownloadDir, addedAt)
+	if err != nil {
+		log.Printf("engine: magnet %x: start session: %v", m.InfoHash, err)
+		// Re-insert placeholder in error state so clients can observe the failure.
+		placeholder.t.State = torrent.StateError
+		e.mu.Lock()
+		e.sessions[m.InfoHash] = placeholder
+		e.mu.Unlock()
+		return
+	}
+
+	wrapped := torrent.WrapInfoDict(infoBytes, tf.AnnounceList)
+	e.dbPutTorrent(tf.InfoHash, wrapped, e.cfg.DownloadDir, addedAt)
+}
+
+// peersForMagnet collects peer addresses via DHT and the magnet's tracker URLs.
+func (e *Engine) peersForMagnet(m *magnet.Magnet) []net.TCPAddr {
+	var peers []net.TCPAddr
+
+	if e.dht != nil {
+		udpPeers, err := e.dht.FindPeers(m.InfoHash)
+		if err == nil {
+			for _, p := range udpPeers {
+				peers = append(peers, net.TCPAddr{IP: p.IP, Port: p.Port})
+			}
+		}
+	}
+
+	if len(m.Trackers) > 0 {
+		params := tracker.AnnounceParams{
+			InfoHash: m.InfoHash,
+			PeerID:   e.peerID,
+			Port:     uint16(e.cfg.ListenPort),
+		}
+		mt := tracker.NewMultiTracker([][]string{m.Trackers}, params)
+		peersCh := make(chan []net.TCPAddr, 1)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		go mt.AnnounceLoop(ctx, peersCh)
+		select {
+		case batch := <-peersCh:
+			peers = append(peers, batch...)
+		case <-ctx.Done():
+		}
+	}
+
+	return peers
+}
+
+// startSessionReusing is like startSession but updates an existing *Torrent in-place
+// instead of allocating a new one. Used by the magnet flow to preserve the pointer
+// returned from AddMagnet.
+func (e *Engine) startSessionReusing(t *torrent.Torrent, tf *torrent.TorrentFile, _ []byte, bf bitfield.Bitfield, dir string, addedAt time.Time) (*torrent.Torrent, error) {
+	if dir == "" {
+		dir = e.cfg.DownloadDir
+	}
+
+	stor := storage.NewManager(tf, dir)
+	if err := stor.Init(); err != nil {
+		return nil, fmt.Errorf("engine: init storage: %w", err)
+	}
+
+	pieceLens := make([]int, tf.PieceCount())
+	for i := range pieceLens {
+		pieceLens[i] = tf.PieceSize(i)
+	}
+	sched := scheduler.New(tf.PieceHashes, pieceLens, bf)
+
+	params := tracker.AnnounceParams{
+		InfoHash: tf.InfoHash,
+		PeerID:   e.peerID,
+		Port:     uint16(e.cfg.ListenPort),
+		Left:     tf.TotalLength(),
+	}
+	mt := tracker.NewMultiTracker(tf.AnnounceList, params)
+	mgr := peer.NewManager(tf, e.peerID, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
+
+	// Update the existing Torrent object in-place.
+	t.File = *tf
+	t.Bitfield = bf
+	t.DownloadDir = dir
+	t.AddedAt = addedAt
+
+	sess := &session{
+		t:       t,
+		storage: stor,
+		sched:   sched,
+		peers:   mgr,
+		tracker: mt,
+		quit:    make(chan struct{}),
+	}
+
+	e.mu.Lock()
+	e.sessions[tf.InfoHash] = sess
+	e.mu.Unlock()
+
+	go e.runSession(sess)
 	return t, nil
 }
 

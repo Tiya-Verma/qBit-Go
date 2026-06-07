@@ -38,6 +38,13 @@ func FindInfoBytes(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("bencode: 'info' key not found")
 }
 
+// FindValueEnd returns the index of the first byte past the complete bencoded value
+// starting at data[offset]. Used by other packages to split bencoded headers from
+// trailing raw bytes (e.g. ut_metadata piece responses).
+func FindValueEnd(data []byte, offset int) (int, error) {
+	return skipValue(data, offset)
+}
+
 // skipValue returns the index of the first byte past the complete bencoded value at data[i].
 func skipValue(data []byte, i int) (int, error) {
 	if i >= len(data) {
