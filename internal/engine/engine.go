@@ -629,6 +629,9 @@ func (e *Engine) runSession(sess *session) {
 				continue
 			}
 			sess.sched.MarkComplete(result.Index)
+			// Scheduler keeps its own clone of the bitfield, so update the
+			// Torrent's bitfield separately — that's what Progress() reads.
+			sess.t.Bitfield.SetPiece(result.Index)
 			atomic.AddInt64(&sess.t.Stats.Downloaded, int64(len(result.Data)))
 			sess.peers.BroadcastHave(result.Index)
 			log.Printf("torrent: piece %d complete (%d bytes), %.2f%% done",
