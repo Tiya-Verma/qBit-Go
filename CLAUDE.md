@@ -4,7 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-Active implementation — all core packages are written and the client can download torrents end-to-end. Completed: bencode parser, torrent parsing (correct info hash), peer wire protocol, piece scheduler, storage, tracker (HTTP/UDP), DHT (BEP 5 including `announce_peer` and serving inbound queries), choking/unchoking, seeding/upload, and bbolt persistence (fast resume). Still pending: magnet link support (BEP 9), PEX (BEP 11), and the React web UI.
+Feature-complete. All planned functionality is implemented and tested:
+- Bencode parser with `FindInfoBytes` for correct info hash computation
+- Full peer wire protocol (BEP 3): download, upload, choking/unchoking (tit-for-tat)
+- Piece scheduler: rarest-first, sequential, end-game modes
+- Storage: multi-file, SHA1 verification, fast resume
+- Tracker: HTTP + UDP (BEP 15), multi-tracker tier fallback (BEP 12)
+- DHT: Kademlia (BEP 5) with `announce_peer` and serving inbound queries
+- Magnet links: BEP 9 (`ut_metadata`) + BEP 10 extension protocol
+- Peer Exchange: BEP 11 (`ut_pex`) with periodic diffs
+- Persistence: bbolt (`torrents` + `fastresume` buckets), restored on startup
+- React + Tailwind web UI, embedded in the Go binary via `//go:embed`
+
+## Build the frontend
+
+The React SPA must be built before compiling Go (the embed requires `internal/api/ui/` to exist):
+
+```bash
+cd web && npm install && npm run build
+```
+
+This outputs to `../internal/api/ui/` which is picked up by `//go:embed all:ui` in `internal/api/server.go`.
 
 ## Commands
 

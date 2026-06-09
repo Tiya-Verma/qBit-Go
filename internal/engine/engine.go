@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -25,14 +26,14 @@ import (
 
 // EngineStats aggregates metrics across all active torrents.
 type EngineStats struct {
-	ActiveTorrents  int
-	SeedingTorrents int
-	TotalDownSpeed  int64
-	TotalUpSpeed    int64
-	TotalDownloaded int64
-	TotalUploaded   int64
-	DHTPeers        int
-	ListenPort      int
+	ActiveTorrents  int   `json:"activeTorrents"`
+	SeedingTorrents int   `json:"seedingTorrents"`
+	TotalDownSpeed  int64 `json:"totalDownSpeed"`
+	TotalUpSpeed    int64 `json:"totalUpSpeed"`
+	TotalDownloaded int64 `json:"totalDownloaded"`
+	TotalUploaded   int64 `json:"totalUploaded"`
+	DHTPeers        int   `json:"dhtPeers"`
+	ListenPort      int   `json:"listenPort"`
 }
 
 // session holds all runtime objects for a single active torrent.
@@ -150,47 +151,93 @@ func (e *Engine) AddMagnet(uri string) (*torrent.Torrent, error) {
 	return t, nil
 }
 
-// fetchMetadata runs in a goroutine: discovers peers, fetches the info dict via
-// BEP 9, then promotes the placeholder session to a full download session.
+// fetchMetadata runs in a goroutine: continuously discovers peers and tries
+// FetchMetadata against them in parallel until one succeeds or the budget
+// expires. Then promotes the placeholder session to a full download session.
 func (e *Engine) fetchMetadata(placeholder *session, m *magnet.Magnet) {
-	peers := e.peersForMagnet(m)
-	if len(peers) == 0 {
-		log.Printf("engine: magnet %x: no peers found", m.InfoHash)
-		placeholder.t.State = torrent.StateError
-		return
-	}
+	const totalBudget = 5 * time.Minute
+	const maxWorkers = 20
+	const rediscoverInterval = 20 * time.Second
 
-	type result struct{ data []byte }
-	resultCh := make(chan result, 1)
-	sem := make(chan struct{}, 3)
-
-	for _, addr := range peers {
+	ctx, cancel := context.WithTimeout(context.Background(), totalBudget)
+	defer cancel()
+	go func() {
 		select {
 		case <-placeholder.quit:
-			return
-		case sem <- struct{}{}:
+			cancel()
+		case <-ctx.Done():
 		}
-		go func(a net.TCPAddr) {
-			defer func() { <-sem }()
-			data, err := peer.FetchMetadata(a, m.InfoHash, e.peerID)
-			if err != nil {
+	}()
+
+	peerCh := make(chan net.TCPAddr, 256)
+	resultCh := make(chan []byte, 1)
+
+	var triedMu sync.Mutex
+	tried := make(map[string]bool)
+
+	// Discovery loop: re-query DHT + trackers periodically and feed new peers
+	// into peerCh. Closes peerCh when ctx is done so workers can exit.
+	go func() {
+		defer close(peerCh)
+		for {
+			peers := e.peersForMagnet(m)
+			newCount := 0
+			for _, p := range peers {
+				key := p.String()
+				triedMu.Lock()
+				if tried[key] {
+					triedMu.Unlock()
+					continue
+				}
+				tried[key] = true
+				triedMu.Unlock()
+				newCount++
+				select {
+				case peerCh <- p:
+				case <-ctx.Done():
+					return
+				}
+			}
+			log.Printf("engine: magnet %x: discovered %d new peer(s) (total tried: %d)", m.InfoHash, newCount, len(tried))
+			select {
+			case <-time.After(rediscoverInterval):
+			case <-ctx.Done():
 				return
 			}
-			select {
-			case resultCh <- result{data}:
-			default:
+		}
+	}()
+
+	// Workers: pull peers off the channel and try FetchMetadata until one wins.
+	var wg sync.WaitGroup
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for addr := range peerCh {
+				if ctx.Err() != nil {
+					return
+				}
+				data, err := peer.FetchMetadata(addr, m.InfoHash, e.peerID)
+				if err != nil {
+					log.Printf("engine: magnet %x: metadata from %s: %v", m.InfoHash, addr.String(), err)
+					continue
+				}
+				select {
+				case resultCh <- data:
+					cancel()
+				default:
+				}
+				return
 			}
-		}(addr)
+		}()
 	}
 
 	var infoBytes []byte
 	select {
-	case r := <-resultCh:
-		infoBytes = r.data
-	case <-placeholder.quit:
-		return
-	case <-time.After(2 * time.Minute):
-		log.Printf("engine: magnet %x: metadata fetch timed out", m.InfoHash)
+	case infoBytes = <-resultCh:
+		log.Printf("engine: magnet %x: metadata fetched (%d bytes)", m.InfoHash, len(infoBytes))
+	case <-ctx.Done():
+		log.Printf("engine: magnet %x: metadata fetch timed out after %s", m.InfoHash, totalBudget)
 		placeholder.t.State = torrent.StateError
 		return
 	}
@@ -235,37 +282,55 @@ func (e *Engine) fetchMetadata(placeholder *session, m *magnet.Magnet) {
 	e.dbPutTorrent(tf.InfoHash, wrapped, e.cfg.DownloadDir, addedAt)
 }
 
-// peersForMagnet collects peer addresses via DHT and the magnet's tracker URLs.
+// peersForMagnet collects peer addresses via DHT and the magnet's tracker URLs
+// concurrently. DHT iterative lookups are slow (cold routing tables), so we run
+// it in parallel with the tracker announce instead of sequentially.
 func (e *Engine) peersForMagnet(m *magnet.Magnet) []net.TCPAddr {
-	var peers []net.TCPAddr
+	var (
+		mu       sync.Mutex
+		peers    []net.TCPAddr
+		wg       sync.WaitGroup
+	)
 
 	if e.dht != nil {
-		udpPeers, err := e.dht.FindPeers(m.InfoHash)
-		if err == nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			udpPeers, err := e.dht.FindPeers(m.InfoHash)
+			if err != nil {
+				return
+			}
+			mu.Lock()
 			for _, p := range udpPeers {
 				peers = append(peers, net.TCPAddr{IP: p.IP, Port: p.Port})
 			}
-		}
+			mu.Unlock()
+		}()
 	}
 
 	if len(m.Trackers) > 0 {
-		params := tracker.AnnounceParams{
-			InfoHash: m.InfoHash,
-			PeerID:   e.peerID,
-			Port:     uint16(e.cfg.ListenPort),
-		}
-		mt := tracker.NewMultiTracker([][]string{m.Trackers}, params)
-		peersCh := make(chan []net.TCPAddr, 1)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		go mt.AnnounceLoop(ctx, peersCh)
-		select {
-		case batch := <-peersCh:
-			peers = append(peers, batch...)
-		case <-ctx.Done():
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			params := tracker.AnnounceParams{
+				InfoHash: m.InfoHash,
+				PeerID:   e.peerID,
+				Port:     uint16(e.cfg.ListenPort),
+				Left:     1 << 40, // unknown size; signal we're downloading, not seeding
+			}
+			mt := tracker.NewMultiTracker([][]string{m.Trackers}, params)
+			defer mt.Close()
+			resp, err := mt.Announce("started")
+			if err != nil || resp == nil {
+				return
+			}
+			mu.Lock()
+			peers = append(peers, resp.Peers...)
+			mu.Unlock()
+		}()
 	}
 
+	wg.Wait()
 	return peers
 }
 
@@ -295,7 +360,7 @@ func (e *Engine) startSessionReusing(t *torrent.Torrent, tf *torrent.TorrentFile
 		Left:     tf.TotalLength(),
 	}
 	mt := tracker.NewMultiTracker(tf.AnnounceList, params)
-	mgr := peer.NewManager(tf, e.peerID, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
+	mgr := peer.NewManager(tf, e.peerID, e.cfg.ListenPort, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
 
 	// Update the existing Torrent object in-place.
 	t.File = *tf
@@ -332,8 +397,12 @@ func (e *Engine) Remove(infoHash [20]byte, deleteFiles bool) error {
 	e.mu.Unlock()
 
 	close(sess.quit)
-	sess.peers.Stop()
-	sess.storage.Close()
+	if sess.peers != nil {
+		sess.peers.Stop()
+	}
+	if sess.storage != nil {
+		sess.storage.Close()
+	}
 	e.dbDeleteTorrent(infoHash)
 	return nil
 }
@@ -417,8 +486,12 @@ func (e *Engine) Shutdown() error {
 	defer e.mu.Unlock()
 	for _, sess := range e.sessions {
 		e.dbSaveFastResume(sess)
-		sess.peers.Stop()
-		sess.storage.Close()
+		if sess.peers != nil {
+			sess.peers.Stop()
+		}
+		if sess.storage != nil {
+			sess.storage.Close()
+		}
 	}
 	if e.dht != nil {
 		e.dht.Close()
@@ -456,7 +529,7 @@ func (e *Engine) startSession(tf *torrent.TorrentFile, _ []byte, bf bitfield.Bit
 	}
 	mt := tracker.NewMultiTracker(tf.AnnounceList, params)
 
-	mgr := peer.NewManager(tf, e.peerID, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
+	mgr := peer.NewManager(tf, e.peerID, e.cfg.ListenPort, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
 
 	t := torrent.New(*tf, bf, dir)
 	sess := &session{
@@ -522,6 +595,27 @@ func (e *Engine) runSession(sess *session) {
 		}
 	}()
 
+	// Sample byte counters every second to compute rolling download/upload speeds.
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		prevDown := atomic.LoadInt64(&sess.t.Stats.Downloaded)
+		prevUp := atomic.LoadInt64(&sess.t.Stats.Uploaded)
+		for {
+			select {
+			case <-ticker.C:
+				curDown := atomic.LoadInt64(&sess.t.Stats.Downloaded)
+				curUp := atomic.LoadInt64(&sess.t.Stats.Uploaded)
+				atomic.StoreInt64(&sess.t.Stats.DownloadSpeed, curDown-prevDown)
+				atomic.StoreInt64(&sess.t.Stats.UploadSpeed, curUp-prevUp)
+				prevDown = curDown
+				prevUp = curUp
+			case <-sess.quit:
+				return
+			}
+		}
+	}()
+
 	fastResumeTicker := time.NewTicker(30 * time.Second)
 	defer fastResumeTicker.Stop()
 
@@ -535,7 +629,10 @@ func (e *Engine) runSession(sess *session) {
 				continue
 			}
 			sess.sched.MarkComplete(result.Index)
+			atomic.AddInt64(&sess.t.Stats.Downloaded, int64(len(result.Data)))
 			sess.peers.BroadcastHave(result.Index)
+			log.Printf("torrent: piece %d complete (%d bytes), %.2f%% done",
+				result.Index, len(result.Data), sess.t.Progress()*100)
 			stats := sess.sched.Stats()
 			if stats.PiecesComplete == stats.PiecesTotal {
 				e.dbSaveFastResume(sess)

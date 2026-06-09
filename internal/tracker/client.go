@@ -3,9 +3,9 @@ package tracker
 import (
 	"context"
 	"errors"
-	"math/rand"
 	"net"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -78,19 +78,38 @@ func NewMultiTracker(announceList [][]string, params AnnounceParams) *MultiTrack
 	return mt
 }
 
-// Announce tries each tracker tier in order, shuffling within tiers.
-// The first successful response is returned.
+// Announce queries all trackers across all tiers in parallel and returns the
+// first successful response. BEP 12 prescribes sequential tier walking, but in
+// practice live trackers respond in <1s while dead ones eat the full retry
+// budget; fanning out gives the responsive trackers a chance to win the race.
 func (m *MultiTracker) Announce(event string) (*AnnounceResponse, error) {
+	type result struct {
+		resp *AnnounceResponse
+		err  error
+	}
+	var clients []Client
 	for _, tier := range m.tiers {
-		rand.Shuffle(len(tier), func(i, j int) { tier[i], tier[j] = tier[j], tier[i] })
-		for i, tracker := range tier {
-			resp, err := tracker.Announce(event)
-			if err == nil {
-				if i != 0 {
-					tier[0], tier[i] = tier[i], tier[0] // promote successful tracker
-				}
-				return resp, nil
-			}
+		clients = append(clients, tier...)
+	}
+	if len(clients) == 0 {
+		return nil, ErrAllTrackersFailed
+	}
+
+	ch := make(chan result, len(clients))
+	var wg sync.WaitGroup
+	for _, c := range clients {
+		wg.Add(1)
+		go func(c Client) {
+			defer wg.Done()
+			resp, err := c.Announce(event)
+			ch <- result{resp, err}
+		}(c)
+	}
+	go func() { wg.Wait(); close(ch) }()
+
+	for r := range ch {
+		if r.err == nil && r.resp != nil {
+			return r.resp, nil
 		}
 	}
 	return nil, ErrAllTrackersFailed

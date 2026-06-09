@@ -62,8 +62,10 @@ func New(eng *engine.Engine) *Server {
 		fileServer := http.FileServer(http.FS(sub))
 		r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
 			// If the requested file exists, serve it; otherwise serve index.html.
-			if _, err := sub.(fs.StatFS).Stat(strings.TrimPrefix(req.URL.Path, "/")); err != nil {
+			if f, err := sub.Open(strings.TrimPrefix(req.URL.Path, "/")); err != nil {
 				req.URL.Path = "/"
+			} else {
+				f.Close()
 			}
 			fileServer.ServeHTTP(w, req)
 		})

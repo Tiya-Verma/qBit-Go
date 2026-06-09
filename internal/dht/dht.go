@@ -181,15 +181,51 @@ func New(port int) (*Node, error) {
 }
 
 // Bootstrap contacts hardcoded bootstrap nodes to populate the routing table.
+// It blocks until all bootstrap queries have completed or timed out.
 func (n *Node) Bootstrap() error {
+	var wg sync.WaitGroup
 	for _, host := range bootstrapNodes {
 		addr, err := net.ResolveUDPAddr("udp", host)
 		if err != nil {
 			continue
 		}
-		n.sendFindNode(addr, n.id)
+		wg.Add(1)
+		go func(a *net.UDPAddr) {
+			defer wg.Done()
+			n.findNode(a, n.id)
+		}(addr)
 	}
+	wg.Wait()
 	return nil
+}
+
+// findNode sends a find_node query and waits for the response, adding returned
+// compact nodes to the routing table. Unlike the old sendFindNode, it registers a
+// pending channel so the response is actually processed.
+func (n *Node) findNode(addr *net.UDPAddr, target NodeID) {
+	txID := randomTxID()
+	msg := buildQuery(txID, "find_node", map[string]interface{}{
+		"id":     string(n.id[:]),
+		"target": string(target[:]),
+	})
+
+	ch := make(chan []byte, 1)
+	n.mu.Lock()
+	n.pending[txID] = ch
+	n.mu.Unlock()
+	defer func() {
+		n.mu.Lock()
+		delete(n.pending, txID)
+		n.mu.Unlock()
+	}()
+
+	n.conn.WriteToUDP(msg, addr) //nolint:errcheck
+
+	select {
+	case resp := <-ch:
+		n.addNodesFromResponse(resp, addr)
+	case <-time.After(5 * time.Second):
+	}
 }
 
 // FindPeers performs an iterative Kademlia lookup for infoHash.
@@ -401,14 +437,6 @@ func (n *Node) sendMsg(addr *net.UDPAddr, data []byte) {
 	n.conn.WriteToUDP(data, addr) //nolint:errcheck
 }
 
-func (n *Node) sendFindNode(addr *net.UDPAddr, target NodeID) {
-	txID := randomTxID()
-	msg := buildQuery(txID, "find_node", map[string]interface{}{
-		"id":     string(n.id[:]),
-		"target": string(target[:]),
-	})
-	n.conn.WriteToUDP(msg, addr) //nolint:errcheck
-}
 
 func (n *Node) getPeers(addr *net.UDPAddr, infoHash [20]byte) ([]net.UDPAddr, []byte) {
 	txID := randomTxID()

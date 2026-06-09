@@ -32,7 +32,7 @@ type Conn struct {
 
 // newConn wraps an established net.Conn into a Conn after handshake.
 func newConn(c net.Conn, infoHash, peerID [20]byte, addr net.TCPAddr) *Conn {
-	return &Conn{
+	conn := &Conn{
 		InfoHash: infoHash,
 		PeerID:   peerID,
 		Addr:     addr,
@@ -41,6 +41,8 @@ func newConn(c net.Conn, infoHash, peerID [20]byte, addr net.TCPAddr) *Conn {
 		outbound: make(chan *Message, 32),
 		quit:     make(chan struct{}),
 	}
+	go conn.writeLoop()
+	return conn
 }
 
 // Dial opens a connection to addr and completes the BitTorrent handshake.
@@ -77,6 +79,8 @@ func (c *Conn) Close() {
 
 // Download drives the download of a single piece from this peer.
 // It pipelines up to MaxPipelineDepth block requests and returns the assembled data.
+// Requests are only sent once the peer has unchoked us; incoming messages are read
+// while choked so we don't miss the Unchoke.
 func (c *Conn) Download(work *scheduler.PieceWork) ([]byte, error) {
 	buf := make([]byte, work.Length)
 	downloaded := 0
@@ -84,17 +88,26 @@ func (c *Conn) Download(work *scheduler.PieceWork) ([]byte, error) {
 	inFlight := 0
 
 	for downloaded < work.Length {
-		// fill the pipeline
-		for inFlight < MaxPipelineDepth && requested < work.Length {
-			blockSize := BlockSize
-			if work.Length-requested < blockSize {
-				blockSize = work.Length - requested
+		// Only pipeline requests when the peer has unchoked us.
+		if !c.Choked {
+			for inFlight < MaxPipelineDepth && requested < work.Length {
+				blockSize := BlockSize
+				if work.Length-requested < blockSize {
+					blockSize = work.Length - requested
+				}
+				c.Send(FormatRequest(work.Index, requested, blockSize))
+				requested += blockSize
+				inFlight++
 			}
-			c.Send(FormatRequest(work.Index, requested, blockSize))
-			requested += blockSize
-			inFlight++
 		}
 
+		// Be patient while choked — peers commonly take 30–60s to optimistic-unchoke
+		// a new peer. Once flowing, blocks should arrive in well under 30s.
+		readDeadline := 30 * time.Second
+		if c.Choked {
+			readDeadline = 2 * time.Minute
+		}
+		c.conn.SetReadDeadline(time.Now().Add(readDeadline)) //nolint:errcheck
 		msg, err := Read(c.conn)
 		if err != nil {
 			return nil, err
@@ -105,9 +118,13 @@ func (c *Conn) Download(work *scheduler.PieceWork) ([]byte, error) {
 
 		switch msg.ID {
 		case MsgChoke:
+			log.Printf("peer %s: CHOKE", c.Addr.String())
 			c.Choked = true
-			return nil, fmt.Errorf("peer: choked mid-download")
+			// Reset pipeline — the peer won't answer our in-flight requests.
+			requested = downloaded
+			inFlight = 0
 		case MsgUnchoke:
+			log.Printf("peer %s: UNCHOKE", c.Addr.String())
 			c.Choked = false
 		case MsgHave:
 			if idx, err := ParseHave(msg); err == nil {
@@ -148,12 +165,13 @@ func (c *Conn) readLoop(handler func(*Message)) {
 	}
 }
 
-// writeLoop drains the outbound channel and writes to TCP.
+// writeLoop drains the outbound channel and writes to TCP. Uses SetWriteDeadline
+// (not SetDeadline) so it doesn't clobber the read deadline set by Download.
 func (c *Conn) writeLoop() {
 	for {
 		select {
 		case msg := <-c.outbound:
-			c.conn.SetDeadline(time.Now().Add(30 * time.Second))
+			c.conn.SetWriteDeadline(time.Now().Add(30 * time.Second)) //nolint:errcheck
 			if _, err := c.conn.Write(msg.Serialize()); err != nil {
 				log.Printf("peer: write error to %s: %v", c.Addr.String(), err)
 				return

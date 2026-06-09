@@ -105,10 +105,12 @@ func (c *udpClient) announce(connID uint64, event uint32) (*AnnounceResponse, er
 	return result, nil
 }
 
-// sendWithRetry retries up to 8 times with exponentially increasing timeouts (BEP 15).
+// sendWithRetry retries with bounded timeouts. BEP 15 specifies 15*2^n, but real
+// clients (libtorrent, qBittorrent) use much shorter budgets so dead trackers
+// don't block live ones. Total worst case here is 8+16 = 24s.
 func (c *udpClient) sendWithRetry(req []byte) ([]byte, error) {
-	for n := 0; n < 8; n++ {
-		timeout := time.Duration(15*(1<<n)) * time.Second
+	for n := 0; n < 2; n++ {
+		timeout := time.Duration(8*(1<<n)) * time.Second
 		c.conn.SetDeadline(time.Now().Add(timeout))
 		if _, err := c.conn.WriteToUDP(req, c.addr); err != nil {
 			return nil, err

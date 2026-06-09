@@ -21,7 +21,7 @@ const (
 // the torrent info dict via BEP 9 (ut_metadata). It verifies the assembled bytes
 // against infoHash and returns the raw bencoded info dict on success.
 func FetchMetadata(addr net.TCPAddr, infoHash, ourID [20]byte) ([]byte, error) {
-	conn, err := net.DialTimeout("tcp", addr.String(), 15*time.Second)
+	conn, err := net.DialTimeout("tcp", addr.String(), 8*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("peer: dial %s: %w", addr.String(), err)
 	}
@@ -37,6 +37,10 @@ func FetchMetadata(addr net.TCPAddr, infoHash, ourID [20]byte) ([]byte, error) {
 		return nil, fmt.Errorf("peer: Extension Protocol not supported")
 	}
 
+	// handshakeFull clears the connection deadline; re-set it so recvExtHandshake
+	// doesn't block forever on peers that never send the extension handshake.
+	conn.SetDeadline(time.Now().Add(30 * time.Second))
+
 	// Send our extension handshake advertising ut_metadata and ut_pex.
 	// Keys sorted: m (only key at top level). Inner keys: ut_metadata < ut_pex.
 	// d1:md11:ut_metadatai2e6:ut_pexi3eee
@@ -51,8 +55,7 @@ func FetchMetadata(addr net.TCPAddr, infoHash, ourID [20]byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Fetch all metadata pieces and assemble them.
-	conn.SetDeadline(time.Now().Add(60 * time.Second))
+	// Fetch all metadata pieces and assemble them (20 s per piece).
 	assembled, err := fetchAllPieces(conn, peerMetaExtID, metadataSize)
 	if err != nil {
 		return nil, err
@@ -109,6 +112,7 @@ func fetchAllPieces(conn net.Conn, peerMetaExtID uint8, metadataSize int) ([]byt
 	assembled := make([]byte, metadataSize)
 
 	for piece := 0; piece < numPieces; piece++ {
+		conn.SetDeadline(time.Now().Add(20 * time.Second))
 		// Request: d8:msg_typei0e5:piecei{N}ee  (keys sorted: m < p)
 		req := []byte(fmt.Sprintf("d8:msg_typei0e5:piecei%dee", piece))
 		if err := sendExtMsg(conn, peerMetaExtID, req); err != nil {

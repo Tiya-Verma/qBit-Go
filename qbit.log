@@ -1,0 +1,582 @@
+2026/06/07 18:55:19 qbit-go listening on :8080
+2026/06/07 18:55:19 manager: got batch of 100 peers from tracker
+2026/06/07 18:55:19 "GET http://localhost:8080/ HTTP/1.1" from [::1]:53655 - 200 392B in 5.23625ms
+2026/06/07 18:55:19 "GET http://localhost:8080/assets/index-7RsUQdZb.css HTTP/1.1" from [::1]:53656 - 200 13393B in 302.25µs
+2026/06/07 18:55:19 "GET http://localhost:8080/assets/index-BJhhe45Y.js HTTP/1.1" from [::1]:53655 - 200 152417B in 367.542µs
+2026/06/07 18:55:19 "GET http://localhost:8080/api/v1/torrents HTTP/1.1" from [::1]:53655 - 200 301B in 157.708µs
+2026/06/07 18:55:19 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:53656 - 200 146B in 83.834µs
+2026/06/07 18:55:19 peer 172.218.238.179:54414: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:19 peer 172.218.238.179:54414: sending INTERESTED
+2026/06/07 18:55:19 "GET http://localhost:8080/favicon.ico HTTP/1.1" from [::1]:53656 - 200 392B in 47.625µs
+2026/06/07 18:55:19 "GET http://localhost:8080/ HTTP/1.1" from [::1]:53656 - 200 392B in 52.667µs
+2026/06/07 18:55:19 "GET http://localhost:8080/assets/index-7RsUQdZb.css HTTP/1.1" from [::1]:53656 - 200 13393B in 221.75µs
+2026/06/07 18:55:19 "GET http://localhost:8080/assets/index-BJhhe45Y.js HTTP/1.1" from [::1]:53655 - 200 152417B in 319.541µs
+2026/06/07 18:55:19 "GET http://localhost:8080/api/v1/torrents HTTP/1.1" from [::1]:53655 - 200 301B in 47µs
+2026/06/07 18:55:19 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:53656 - 200 146B in 20.416µs
+2026/06/07 18:55:19 "GET http://localhost:8080/favicon.ico HTTP/1.1" from [::1]:53656 - 200 392B in 56.584µs
+2026/06/07 18:55:19 peer 61.239.187.235:16400: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:19 peer 61.239.187.235:16400: sending INTERESTED
+2026/06/07 18:55:20 peer 184.146.103.208:19515: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:20 peer 184.146.103.208:19515: sending INTERESTED
+2026/06/07 18:55:20 peer 198.44.157.34:14423: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:20 peer 198.44.157.34:14423: sending INTERESTED
+2026/06/07 18:55:20 peer 187.170.159.174:51217: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:20 peer 187.170.159.174:51217: sending INTERESTED
+2026/06/07 18:55:20 peer 187.170.159.174:51217: awaitReady: EOF
+2026/06/07 18:55:20 peer 101.182.193.160:58233: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:20 peer 101.182.193.160:58233: sending INTERESTED
+2026/06/07 18:55:20 peer 169.150.208.178:36515: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:20 peer 169.150.208.178:36515: sending INTERESTED
+2026/06/07 18:55:20 peer 184.146.103.208:19515: UNCHOKE (awaitReady)
+2026/06/07 18:55:20 peer 101.182.193.160:58233: awaitReady: read tcp 206.87.114.168:53715->101.182.193.160:58233: read: connection reset by peer
+2026/06/07 18:55:21 peer 220.253.138.139:4345: connected, sending bitfield (68 bytes)
+2026/06/07 18:55:21 peer 220.253.138.139:4345: sending INTERESTED
+2026/06/07 18:55:23 peer 61.239.187.235:16400: UNCHOKE (awaitReady)
+2026/06/07 18:55:25 torrent: piece 3 complete (4194304 bytes), 40.67% done
+2026/06/07 18:55:30 torrent: piece 7 complete (4194304 bytes), 40.67% done
+2026/06/07 18:55:33 peer 220.253.138.139:4345: UNCHOKE (awaitReady)
+2026/06/07 18:55:35 torrent: piece 8 complete (4194304 bytes), 40.67% done
+2026/06/07 18:55:35 torrent: piece 4 complete (4194304 bytes), 40.67% done
+2026/06/07 18:55:40 torrent: piece 16 complete (4194304 bytes), 40.67% done
+2026/06/07 18:55:41 manager: download piece 20 from 184.146.103.208:19515: EOF
+2026/06/07 18:55:41 peer: write error to 184.146.103.208:19515: write tcp 206.87.114.168:53700->184.146.103.208:19515: use of closed network connection
+2026/06/07 18:55:47 torrent: piece 19 complete (4194304 bytes), 40.67% done
+2026/06/07 18:55:47 peer 198.44.157.34:14423: UNCHOKE (awaitReady)
+2026/06/07 18:55:51 peer 61.239.187.235:16400: CHOKE
+2026/06/07 18:55:54 peer 169.150.208.178:36515: awaitReady: EOF
+2026/06/07 18:55:59 torrent: piece 22 complete (4194304 bytes), 40.67% done
+2026/06/07 18:56:03 manager: download piece 9 from 220.253.138.139:4345: read tcp 206.87.114.168:53735->220.253.138.139:4345: i/o timeout
+2026/06/07 18:56:13 torrent: piece 23 complete (4194304 bytes), 40.67% done
+2026/06/07 18:56:19 manager: download piece 25 from 172.218.238.179:54414: EOF
+2026/06/07 18:56:27 torrent: piece 24 complete (4194304 bytes), 40.67% done
+2026/06/07 18:56:47 torrent: piece 26 complete (4194304 bytes), 40.67% done
+2026/06/07 18:56:52 manager: download piece 21 from 61.239.187.235:16400: EOF
+2026/06/07 18:57:01 torrent: piece 27 complete (4194304 bytes), 40.67% done
+2026/06/07 18:57:17 torrent: piece 28 complete (4194304 bytes), 40.67% done
+2026/06/07 18:57:28 torrent: piece 29 complete (4194304 bytes), 40.67% done
+2026/06/07 18:57:36 "GET http://localhost:8080/ HTTP/1.1" from [::1]:53656 - 200 392B in 56.125µs
+2026/06/07 18:57:36 "GET http://localhost:8080/assets/index-7RsUQdZb.css HTTP/1.1" from [::1]:53655 - 200 13393B in 154.666µs
+2026/06/07 18:57:36 "GET http://localhost:8080/assets/index-BJhhe45Y.js HTTP/1.1" from [::1]:53656 - 200 152417B in 134.292µs
+2026/06/07 18:57:36 "GET http://localhost:8080/api/v1/torrents HTTP/1.1" from [::1]:53656 - 200 308B in 39.583µs
+2026/06/07 18:57:36 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:53655 - 200 153B in 20.75µs
+2026/06/07 18:57:36 "GET http://localhost:8080/favicon.ico HTTP/1.1" from [::1]:53774 - 200 392B in 42.75µs
+2026/06/07 18:57:46 torrent: piece 30 complete (4194304 bytes), 40.67% done
+2026/06/07 18:58:04 torrent: piece 31 complete (4194304 bytes), 40.67% done
+2026/06/07 18:58:18 torrent: piece 32 complete (4194304 bytes), 40.67% done
+2026/06/07 18:58:35 torrent: piece 33 complete (4194304 bytes), 40.67% done
+2026/06/07 18:58:48 torrent: piece 34 complete (4194304 bytes), 40.67% done
+2026/06/07 18:59:02 torrent: piece 35 complete (4194304 bytes), 40.67% done
+2026/06/07 18:59:12 torrent: piece 36 complete (4194304 bytes), 40.67% done
+2026/06/07 18:59:23 torrent: piece 37 complete (4194304 bytes), 40.67% done
+2026/06/07 18:59:33 torrent: piece 38 complete (4194304 bytes), 40.67% done
+2026/06/07 18:59:44 torrent: piece 39 complete (4194304 bytes), 40.67% done
+2026/06/07 18:59:54 torrent: piece 40 complete (4194304 bytes), 40.67% done
+2026/06/07 19:00:03 torrent: piece 248 complete (4194304 bytes), 40.67% done
+2026/06/07 19:00:14 torrent: piece 249 complete (4194304 bytes), 40.67% done
+2026/06/07 19:00:30 torrent: piece 250 complete (4194304 bytes), 40.67% done
+2026/06/07 19:00:46 torrent: piece 251 complete (4194304 bytes), 40.67% done
+2026/06/07 19:01:05 torrent: piece 252 complete (4194304 bytes), 40.67% done
+2026/06/07 19:01:13 "GET http://localhost:8080/ HTTP/1.1" from [::1]:53774 - 200 392B in 48.791µs
+2026/06/07 19:01:13 "GET http://localhost:8080/assets/index-7RsUQdZb.css HTTP/1.1" from [::1]:53655 - 200 13393B in 64.791µs
+2026/06/07 19:01:13 "GET http://localhost:8080/assets/index-BJhhe45Y.js HTTP/1.1" from [::1]:53774 - 200 152417B in 245.625µs
+2026/06/07 19:01:13 "GET http://localhost:8080/api/v1/torrents HTTP/1.1" from [::1]:53774 - 200 309B in 39.125µs
+2026/06/07 19:01:13 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:53655 - 200 154B in 19.209µs
+2026/06/07 19:01:13 "GET http://localhost:8080/favicon.ico HTTP/1.1" from [::1]:53655 - 200 392B in 27.125µs
+2026/06/07 19:01:19 torrent: piece 253 complete (4194304 bytes), 40.67% done
+2026/06/07 19:01:32 torrent: piece 254 complete (4194304 bytes), 40.67% done
+2026/06/07 19:01:45 torrent: piece 255 complete (4194304 bytes), 40.67% done
+2026/06/07 19:02:07 torrent: piece 256 complete (4194304 bytes), 40.67% done
+2026/06/07 19:02:25 torrent: piece 257 complete (4194304 bytes), 40.67% done
+2026/06/07 19:02:35 torrent: piece 258 complete (4194304 bytes), 40.67% done
+2026/06/07 19:02:48 torrent: piece 259 complete (4194304 bytes), 40.67% done
+2026/06/07 19:03:05 torrent: piece 260 complete (4194304 bytes), 40.67% done
+2026/06/07 19:03:15 torrent: piece 261 complete (4194304 bytes), 40.67% done
+2026/06/07 19:03:24 torrent: piece 262 complete (4194304 bytes), 40.67% done
+2026/06/07 19:03:35 torrent: piece 263 complete (4194304 bytes), 40.67% done
+2026/06/07 19:03:46 peer 198.44.157.34:14423: CHOKE
+2026/06/07 19:04:46 manager: download piece 264 from 198.44.157.34:14423: EOF
+2026/06/07 19:06:52 "GET http://localhost:8080/ HTTP/1.1" from [::1]:53838 - 200 392B in 50.5µs
+2026/06/07 19:06:52 "GET http://localhost:8080/assets/index-7RsUQdZb.css HTTP/1.1" from [::1]:53839 - 200 13393B in 117.459µs
+2026/06/07 19:06:52 "GET http://localhost:8080/assets/index-BJhhe45Y.js HTTP/1.1" from [::1]:53838 - 200 152417B in 125.208µs
+2026/06/07 19:06:52 "GET http://localhost:8080/api/v1/torrents HTTP/1.1" from [::1]:53838 - 200 309B in 41.083µs
+2026/06/07 19:06:52 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:53839 - 200 154B in 17.209µs
+2026/06/07 19:06:52 "GET http://localhost:8080/favicon.ico HTTP/1.1" from [::1]:53838 - 200 392B in 26.958µs
+2026/06/07 19:25:19 manager: got batch of 200 peers from tracker
+2026/06/07 19:25:19 peer 70.181.242.128:55804: connected, sending bitfield (68 bytes)
+2026/06/07 19:25:19 peer 70.181.242.128:55804: sending INTERESTED
+2026/06/07 19:25:19 peer 122.116.245.221:60541: connected, sending bitfield (68 bytes)
+2026/06/07 19:25:19 peer 122.116.245.221:60541: sending INTERESTED
+2026/06/07 19:25:19 peer 102.130.209.174:26225: connected, sending bitfield (68 bytes)
+2026/06/07 19:25:19 peer 102.130.209.174:26225: sending INTERESTED
+2026/06/07 19:25:19 peer 102.130.209.174:26225: awaitReady: EOF
+2026/06/07 19:25:20 peer 122.116.245.221:60541: UNCHOKE (awaitReady)
+2026/06/07 19:26:20 manager: download piece 266 from 70.181.242.128:55804: EOF
+2026/06/07 19:28:53 peer 122.116.245.221:60541: CHOKE
+2026/06/07 19:28:54 peer 122.116.245.221:60541: UNCHOKE
+2026/06/07 19:29:06 peer 122.116.245.221:60541: CHOKE
+2026/06/07 19:30:07 manager: download piece 265 from 122.116.245.221:60541: EOF
+2026/06/07 21:41:26 manager: got batch of 200 peers from tracker
+2026/06/07 21:41:26 peer 47.34.130.247:49147: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:26 peer 47.34.130.247:49147: sending INTERESTED
+2026/06/07 21:41:26 peer 104.158.90.77:24265: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:26 peer 104.158.90.77:24265: sending INTERESTED
+2026/06/07 21:41:26 peer 184.75.223.219:47399: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:26 peer 184.75.223.219:47399: sending INTERESTED
+2026/06/07 21:41:26 peer 92.220.219.209:13096: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:26 peer 92.220.219.209:13096: sending INTERESTED
+2026/06/07 21:41:26 peer 79.132.11.254:35434: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:26 peer 79.132.11.254:35434: sending INTERESTED
+2026/06/07 21:41:26 peer 138.75.112.148:47614: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:26 peer 138.75.112.148:47614: sending INTERESTED
+2026/06/07 21:41:27 peer 195.177.93.1:32083: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:27 peer 195.177.93.1:32083: sending INTERESTED
+2026/06/07 21:41:27 peer 158.173.21.38:45895: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:27 peer 158.173.21.38:45895: sending INTERESTED
+2026/06/07 21:41:27 peer 195.177.93.1:32083: UNCHOKE (awaitReady)
+2026/06/07 21:41:27 peer 178.93.200.29:30579: connected, sending bitfield (68 bytes)
+2026/06/07 21:41:27 peer 178.93.200.29:30579: sending INTERESTED
+2026/06/07 21:41:27 peer 79.132.11.254:35434: UNCHOKE (awaitReady)
+2026/06/07 21:41:27 peer 195.177.93.1:32083: UNCHOKE
+2026/06/07 21:41:28 manager: download piece 268 from 79.132.11.254:35434: EOF
+2026/06/07 21:55:14 manager: download piece 267 from 195.177.93.1:32083: read tcp 206.87.114.168:54611->195.177.93.1:32083: read: connection reset by peer
+2026/06/07 21:55:14 peer 86.49.25.50:17898: connected, sending bitfield (68 bytes)
+2026/06/07 21:55:14 peer 86.49.25.50:17898: sending INTERESTED
+2026/06/07 21:55:15 peer 174.95.161.29:54114: connected, sending bitfield (68 bytes)
+2026/06/07 21:55:15 peer 174.95.161.29:54114: sending INTERESTED
+2026/06/07 21:55:15 peer 174.95.161.29:54114: UNCHOKE (awaitReady)
+2026/06/07 21:55:15 peer 174.95.161.29:54114: UNCHOKE
+2026/06/07 21:55:18 peer 47.34.130.247:49147: awaitReady: read tcp 206.87.114.168:54569->47.34.130.247:49147: read: connection reset by peer
+2026/06/07 21:55:18 peer 92.220.219.209:13096: awaitReady: read tcp 206.87.114.168:54673->92.220.219.209:13096: read: connection reset by peer
+2026/06/07 21:55:18 peer 138.75.112.148:47614: awaitReady: read tcp 206.87.114.168:54631->138.75.112.148:47614: read: connection reset by peer
+2026/06/07 21:55:18 peer 104.158.90.77:24265: awaitReady: read tcp 206.87.114.168:54574->104.158.90.77:24265: read: connection reset by peer
+2026/06/07 21:55:18 peer 178.93.200.29:30579: awaitReady: read tcp 206.87.114.168:54679->178.93.200.29:30579: read: connection reset by peer
+2026/06/07 21:55:18 peer 184.75.223.219:47399: awaitReady: read tcp 206.87.114.168:54658->184.75.223.219:47399: read: connection reset by peer
+2026/06/07 21:55:18 peer 158.173.21.38:45895: awaitReady: read tcp 206.87.114.168:54635->158.173.21.38:45895: read: connection reset by peer
+2026/06/07 22:00:05 peer 86.49.25.50:17898: awaitReady: read tcp 206.87.114.168:54609->86.49.25.50:17898: read: connection reset by peer
+2026/06/07 22:15:08 manager: download piece 269 from 174.95.161.29:54114: read tcp 206.87.114.168:54627->174.95.161.29:54114: read: operation timed out
+2026/06/08 13:19:59 "GET http://localhost:8080/ HTTP/1.1" from [::1]:55477 - 200 392B in 61.458µs
+2026/06/08 13:19:59 "GET http://localhost:8080/assets/index-BJhhe45Y.js HTTP/1.1" from [::1]:55477 - 200 152417B in 185.292µs
+2026/06/08 13:19:59 "GET http://localhost:8080/assets/index-7RsUQdZb.css HTTP/1.1" from [::1]:55478 - 200 13393B in 71.667µs
+2026/06/08 13:19:59 "GET http://localhost:8080/api/v1/torrents HTTP/1.1" from [::1]:55477 - 200 309B in 45.583µs
+2026/06/08 13:19:59 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:55478 - 200 154B in 15.208µs
+2026/06/08 13:19:59 "GET http://localhost:8080/favicon.ico HTTP/1.1" from [::1]:55478 - 200 392B in 72.25µs
+2026/06/08 17:10:39 manager: got batch of 100 peers from tracker
+2026/06/08 17:10:40 peer 86.186.239.205:59548: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 86.186.239.205:59548: sending INTERESTED
+2026/06/08 17:10:40 peer 89.160.226.158:33476: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 89.160.226.158:33476: sending INTERESTED
+2026/06/08 17:10:40 peer 158.173.67.156:58943: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 158.173.67.156:58943: sending INTERESTED
+2026/06/08 17:10:40 peer 213.222.42.13:61667: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 93.103.63.225:7348: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 93.103.63.225:7348: sending INTERESTED
+2026/06/08 17:10:40 peer 213.222.42.13:61667: sending INTERESTED
+2026/06/08 17:10:40 peer 101.179.136.33:57544: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 101.179.136.33:57544: sending INTERESTED
+2026/06/08 17:10:40 peer 104.246.143.43:45330: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 104.246.143.43:45330: sending INTERESTED
+2026/06/08 17:10:40 peer 217.156.122.90:59151: connected, sending bitfield (68 bytes)
+2026/06/08 17:10:40 peer 217.156.122.90:59151: sending INTERESTED
+2026/06/08 17:10:41 peer 93.103.63.225:7348: awaitReady: read tcp 206.87.114.168:55872->93.103.63.225:7348: read: connection reset by peer
+2026/06/08 17:10:45 peer 104.246.143.43:45330: UNCHOKE (awaitReady)
+2026/06/08 17:10:45 peer 213.222.42.13:61667: UNCHOKE (awaitReady)
+2026/06/08 17:10:46 peer 86.186.239.205:59548: UNCHOKE (awaitReady)
+2026/06/08 17:10:47 peer 101.179.136.33:57544: UNCHOKE (awaitReady)
+2026/06/08 17:10:52 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:10:57 torrent: piece 272 complete (4194304 bytes), 40.67% done
+2026/06/08 17:10:57 torrent: piece 271 complete (4194304 bytes), 40.67% done
+2026/06/08 17:11:03 peer 158.173.67.156:58943: UNCHOKE (awaitReady)
+2026/06/08 17:11:08 torrent: piece 274 complete (4194304 bytes), 40.67% done
+2026/06/08 17:11:13 peer 213.222.42.13:61667: CHOKE
+2026/06/08 17:11:18 torrent: piece 277 complete (4194304 bytes), 40.67% done
+2026/06/08 17:11:28 torrent: piece 278 complete (4194304 bytes), 40.67% done
+2026/06/08 17:11:38 peer 158.173.67.156:58943: CHOKE
+2026/06/08 17:11:40 torrent: piece 279 complete (4194304 bytes), 40.67% done
+2026/06/08 17:11:41 manager: download piece 281 from 89.160.226.158:33476: EOF
+2026/06/08 17:11:51 torrent: piece 280 complete (4194304 bytes), 40.67% done
+2026/06/08 17:12:02 torrent: piece 282 complete (4194304 bytes), 40.67% done
+2026/06/08 17:12:13 torrent: piece 283 complete (4194304 bytes), 40.67% done
+2026/06/08 17:12:13 manager: download piece 275 from 213.222.42.13:61667: EOF
+2026/06/08 17:12:15 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:12:25 torrent: piece 284 complete (4194304 bytes), 40.67% done
+2026/06/08 17:12:36 torrent: piece 285 complete (4194304 bytes), 40.67% done
+2026/06/08 17:12:39 manager: download piece 276 from 158.173.67.156:58943: EOF
+2026/06/08 17:12:40 manager: download piece 287 from 217.156.122.90:59151: read tcp 206.87.114.168:55869->217.156.122.90:59151: read: connection reset by peer
+2026/06/08 17:12:48 torrent: piece 286 complete (4194304 bytes), 40.67% done
+2026/06/08 17:12:50 manager: download piece 273 from 101.179.136.33:57544: read tcp 206.87.114.168:55858->101.179.136.33:57544: i/o timeout
+2026/06/08 17:12:58 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:12:59 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:13:00 torrent: piece 288 complete (4194304 bytes), 40.67% done
+2026/06/08 17:13:11 torrent: piece 289 complete (4194304 bytes), 40.67% done
+2026/06/08 17:13:22 torrent: piece 290 complete (4194304 bytes), 40.67% done
+2026/06/08 17:13:32 torrent: piece 291 complete (4194304 bytes), 40.67% done
+2026/06/08 17:13:38 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:13:38 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:13:43 torrent: piece 292 complete (4194304 bytes), 40.67% done
+2026/06/08 17:13:45 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:13:45 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:13:53 torrent: piece 293 complete (4194304 bytes), 40.67% done
+2026/06/08 17:14:05 torrent: piece 294 complete (4194304 bytes), 40.67% done
+2026/06/08 17:14:16 torrent: piece 295 complete (4194304 bytes), 40.67% done
+2026/06/08 17:14:27 torrent: piece 296 complete (4194304 bytes), 40.67% done
+2026/06/08 17:14:37 torrent: piece 297 complete (4194304 bytes), 40.67% done
+2026/06/08 17:14:49 torrent: piece 298 complete (4194304 bytes), 40.67% done
+2026/06/08 17:15:01 torrent: piece 299 complete (4194304 bytes), 40.67% done
+2026/06/08 17:15:03 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:15:04 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:15:14 torrent: piece 300 complete (4194304 bytes), 40.67% done
+2026/06/08 17:15:14 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:15:14 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:15:28 torrent: piece 301 complete (4194304 bytes), 40.67% done
+2026/06/08 17:15:42 torrent: piece 302 complete (4194304 bytes), 40.67% done
+2026/06/08 17:16:00 torrent: piece 303 complete (4194304 bytes), 40.67% done
+2026/06/08 17:16:01 peer 86.186.239.205:59548: CHOKE
+2026/06/08 17:16:22 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:16:41 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:17:02 manager: download piece 304 from 86.186.239.205:59548: read tcp 206.87.114.168:55859->86.186.239.205:59548: read: connection reset by peer
+2026/06/08 17:17:49 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:17:52 peer 104.246.143.43:45330: UNCHOKE
+2026/06/08 17:17:58 peer 104.246.143.43:45330: CHOKE
+2026/06/08 17:18:59 manager: download piece 270 from 104.246.143.43:45330: EOF
+2026/06/08 18:17:13 manager: got batch of 200 peers from tracker
+2026/06/08 18:17:13 peer 24.21.247.182:40199: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 24.21.247.182:40199: sending INTERESTED
+2026/06/08 18:17:13 peer 38.246.11.48:14427: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 38.246.11.48:14427: sending INTERESTED
+2026/06/08 18:17:13 peer 98.159.134.206:50654: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 98.159.134.206:50654: sending INTERESTED
+2026/06/08 18:17:13 peer 24.78.150.50:52605: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 24.78.150.50:52605: sending INTERESTED
+2026/06/08 18:17:13 peer 95.173.217.4:64198: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 95.173.217.4:64198: sending INTERESTED
+2026/06/08 18:17:13 peer 58.174.40.65:4869: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 58.174.40.65:4869: sending INTERESTED
+2026/06/08 18:17:13 peer 31.155.192.226:48309: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 79.100.237.193:19887: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 31.155.192.226:48309: sending INTERESTED
+2026/06/08 18:17:13 peer 79.100.237.193:19887: sending INTERESTED
+2026/06/08 18:17:13 peer 46.10.43.39:33498: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 46.10.43.39:33498: sending INTERESTED
+2026/06/08 18:17:13 peer 171.250.250.91:10663: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 171.250.250.91:10663: sending INTERESTED
+2026/06/08 18:17:13 peer 124.150.92.43:35529: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 124.150.92.43:35529: sending INTERESTED
+2026/06/08 18:17:13 peer 81.27.86.14:59422: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:13 peer 81.27.86.14:59422: sending INTERESTED
+2026/06/08 18:17:14 peer 165.73.21.135:37266: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:14 peer 165.73.21.135:37266: sending INTERESTED
+2026/06/08 18:17:15 peer 81.27.86.14:59422: UNCHOKE (awaitReady)
+2026/06/08 18:17:15 peer 190.83.229.23:45079: connected, sending bitfield (68 bytes)
+2026/06/08 18:17:15 peer 190.83.229.23:45079: sending INTERESTED
+2026/06/08 18:17:17 peer 124.150.92.43:35529: UNCHOKE (awaitReady)
+2026/06/08 18:17:19 peer 46.10.43.39:33498: UNCHOKE (awaitReady)
+2026/06/08 18:17:20 peer 98.159.134.206:50654: UNCHOKE (awaitReady)
+2026/06/08 18:17:26 peer 24.78.150.50:52605: UNCHOKE (awaitReady)
+2026/06/08 18:17:26 peer 98.159.134.206:50654: CHOKE
+2026/06/08 18:17:30 peer 124.150.92.43:35529: CHOKE
+2026/06/08 18:17:31 peer 81.27.86.14:59422: CHOKE
+2026/06/08 18:17:31 peer 190.83.229.23:45079: UNCHOKE (awaitReady)
+2026/06/08 18:17:35 peer 190.83.229.23:45079: CHOKE
+2026/06/08 18:17:36 torrent: piece 309 complete (4194304 bytes), 40.67% done
+2026/06/08 18:17:39 peer 58.174.40.65:4869: UNCHOKE (awaitReady)
+2026/06/08 18:17:40 peer 171.250.250.91:10663: UNCHOKE (awaitReady)
+2026/06/08 18:17:41 torrent: piece 311 complete (4194304 bytes), 40.67% done
+2026/06/08 18:17:45 peer 58.174.40.65:4869: CHOKE
+2026/06/08 18:17:50 peer 81.27.86.14:59422: UNCHOKE
+2026/06/08 18:17:51 peer 24.78.150.50:52605: CHOKE
+2026/06/08 18:18:11 peer 171.250.250.91:10663: CHOKE
+2026/06/08 18:18:14 manager: download piece 315 from 38.246.11.48:14427: read tcp 206.87.114.168:56442->38.246.11.48:14427: read: connection reset by peer
+2026/06/08 18:18:14 peer 46.10.43.39:33498: CHOKE
+2026/06/08 18:18:21 peer 95.173.217.4:64198: UNCHOKE (awaitReady)
+2026/06/08 18:18:30 torrent: piece 316 complete (4194304 bytes), 40.67% done
+2026/06/08 18:18:49 peer 24.78.150.50:52605: UNCHOKE
+2026/06/08 18:18:51 torrent: piece 314 complete (4194304 bytes), 40.67% done
+2026/06/08 18:18:54 manager: download piece 305 from 81.27.86.14:59422: EOF
+2026/06/08 18:18:56 torrent: piece 318 complete (4194304 bytes), 40.67% done
+2026/06/08 18:19:03 torrent: piece 319 complete (4194304 bytes), 40.67% done
+2026/06/08 18:19:05 peer 24.78.150.50:52605: CHOKE
+2026/06/08 18:19:14 peer 24.21.247.182:40199: awaitReady: timeout waiting for bitfield+unchoke (choked=true, sawBitfield=true)
+2026/06/08 18:19:14 manager: download piece 321 from 31.155.192.226:48309: read tcp 206.87.114.168:56417->31.155.192.226:48309: read: connection reset by peer
+2026/06/08 18:19:16 manager: download piece 322 from 165.73.21.135:37266: EOF
+2026/06/08 18:19:16 manager: download piece 310 from 190.83.229.23:45079: read tcp 206.87.114.168:56444->190.83.229.23:45079: read: connection reset by peer
+2026/06/08 18:19:18 peer 79.100.237.193:19887: awaitReady: read tcp 206.87.114.168:56406->79.100.237.193:19887: i/o timeout
+2026/06/08 18:19:34 manager: download piece 317 from 95.173.217.4:64198: EOF
+2026/06/08 18:19:45 manager: download piece 312 from 58.174.40.65:4869: read tcp 206.87.114.168:56431->58.174.40.65:4869: read: connection reset by peer
+2026/06/08 18:19:47 peer 24.78.150.50:52605: UNCHOKE
+2026/06/08 18:19:51 torrent: piece 320 complete (4194304 bytes), 40.67% done
+2026/06/08 18:20:10 peer 24.78.150.50:52605: CHOKE
+2026/06/08 18:20:12 manager: download piece 313 from 171.250.250.91:10663: EOF
+2026/06/08 18:20:14 manager: download piece 307 from 46.10.43.39:33498: read tcp 206.87.114.168:56493->46.10.43.39:33498: i/o timeout
+2026/06/08 18:20:28 manager: download piece 308 from 98.159.134.206:50654: read tcp 206.87.114.168:56503->98.159.134.206:50654: read: connection reset by peer
+2026/06/08 18:20:56 peer 124.150.92.43:35529: UNCHOKE
+2026/06/08 18:20:58 peer 24.78.150.50:52605: UNCHOKE
+2026/06/08 18:21:02 torrent: piece 323 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:06 torrent: piece 324 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:10 torrent: piece 325 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:17 torrent: piece 326 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:20 peer 124.150.92.43:35529: CHOKE
+2026/06/08 18:21:22 torrent: piece 327 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:22 manager: download piece 306 from 124.150.92.43:35529: EOF
+2026/06/08 18:21:27 torrent: piece 328 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:35 torrent: piece 329 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:39 torrent: piece 330 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:46 torrent: piece 331 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:51 torrent: piece 332 complete (4194304 bytes), 40.67% done
+2026/06/08 18:21:56 torrent: piece 333 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:00 torrent: piece 334 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:06 torrent: piece 335 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:12 torrent: piece 336 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:16 torrent: piece 337 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:21 torrent: piece 338 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:29 torrent: piece 339 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:33 torrent: piece 340 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:37 torrent: piece 341 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:42 torrent: piece 342 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:49 torrent: piece 343 complete (4194304 bytes), 40.67% done
+2026/06/08 18:22:57 torrent: piece 344 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:02 torrent: piece 345 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:06 torrent: piece 346 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:10 torrent: piece 347 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:19 torrent: piece 348 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:27 torrent: piece 349 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:31 torrent: piece 350 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:38 torrent: piece 351 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:44 torrent: piece 352 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:50 torrent: piece 353 complete (4194304 bytes), 40.67% done
+2026/06/08 18:23:57 torrent: piece 354 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:02 torrent: piece 355 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:07 torrent: piece 356 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:14 torrent: piece 357 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:18 torrent: piece 358 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:23 torrent: piece 359 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:29 torrent: piece 360 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:36 torrent: piece 361 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:41 torrent: piece 362 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:45 torrent: piece 363 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:50 torrent: piece 364 complete (4194304 bytes), 40.67% done
+2026/06/08 18:24:56 torrent: piece 365 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:01 torrent: piece 366 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:05 torrent: piece 367 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:09 torrent: piece 368 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:14 torrent: piece 369 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:19 torrent: piece 370 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:24 torrent: piece 371 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:30 torrent: piece 372 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:35 torrent: piece 373 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:39 torrent: piece 374 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:44 torrent: piece 375 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:51 torrent: piece 376 complete (4194304 bytes), 40.67% done
+2026/06/08 18:25:55 torrent: piece 377 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:00 torrent: piece 378 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:08 torrent: piece 379 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:13 torrent: piece 380 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:18 torrent: piece 381 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:22 torrent: piece 382 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:26 torrent: piece 383 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:30 torrent: piece 384 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:34 torrent: piece 385 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:37 torrent: piece 386 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:49 torrent: piece 387 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:54 torrent: piece 388 complete (4194304 bytes), 40.67% done
+2026/06/08 18:26:58 torrent: piece 389 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:06 torrent: piece 390 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:10 torrent: piece 391 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:14 torrent: piece 392 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:17 torrent: piece 393 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:20 torrent: piece 394 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:24 torrent: piece 395 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:27 torrent: piece 396 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:31 torrent: piece 397 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:34 torrent: piece 398 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:38 torrent: piece 399 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:42 torrent: piece 400 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:46 torrent: piece 401 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:49 torrent: piece 402 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:53 torrent: piece 403 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:56 torrent: piece 404 complete (4194304 bytes), 40.67% done
+2026/06/08 18:27:59 torrent: piece 405 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:03 torrent: piece 406 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:06 torrent: piece 407 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:09 torrent: piece 408 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:13 torrent: piece 409 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:17 torrent: piece 410 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:22 torrent: piece 411 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:26 torrent: piece 412 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:29 torrent: piece 413 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:33 torrent: piece 414 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:36 torrent: piece 415 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:39 torrent: piece 416 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:42 torrent: piece 417 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:45 torrent: piece 418 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:49 torrent: piece 419 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:52 torrent: piece 420 complete (4194304 bytes), 40.67% done
+2026/06/08 18:28:56 torrent: piece 421 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:00 torrent: piece 422 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:03 torrent: piece 423 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:07 torrent: piece 424 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:10 torrent: piece 425 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:13 torrent: piece 426 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:17 torrent: piece 427 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:21 torrent: piece 428 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:24 torrent: piece 429 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:28 torrent: piece 430 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:32 torrent: piece 431 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:36 torrent: piece 432 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:40 torrent: piece 433 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:51 torrent: piece 434 complete (4194304 bytes), 40.67% done
+2026/06/08 18:29:56 torrent: piece 435 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:01 torrent: piece 436 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:05 torrent: piece 437 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:10 torrent: piece 438 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:14 torrent: piece 439 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:19 torrent: piece 440 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:23 torrent: piece 441 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:28 torrent: piece 442 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:31 torrent: piece 443 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:36 torrent: piece 444 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:39 torrent: piece 445 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:43 torrent: piece 446 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:47 torrent: piece 447 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:51 torrent: piece 448 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:54 torrent: piece 449 complete (4194304 bytes), 40.67% done
+2026/06/08 18:30:59 torrent: piece 450 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:04 torrent: piece 451 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:08 torrent: piece 452 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:12 torrent: piece 453 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:16 torrent: piece 454 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:20 torrent: piece 455 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:25 torrent: piece 456 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:29 torrent: piece 457 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:33 torrent: piece 458 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:38 torrent: piece 459 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:43 torrent: piece 460 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:49 torrent: piece 461 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:54 torrent: piece 462 complete (4194304 bytes), 40.67% done
+2026/06/08 18:31:58 torrent: piece 463 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:01 torrent: piece 464 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:05 torrent: piece 465 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:10 torrent: piece 466 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:15 torrent: piece 467 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:20 torrent: piece 468 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:23 torrent: piece 469 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:28 torrent: piece 470 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:32 torrent: piece 471 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:37 torrent: piece 472 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:41 torrent: piece 473 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:46 torrent: piece 474 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:52 torrent: piece 475 complete (4194304 bytes), 40.67% done
+2026/06/08 18:32:56 torrent: piece 476 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:00 torrent: piece 477 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:05 torrent: piece 478 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:10 torrent: piece 479 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:16 torrent: piece 480 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:21 torrent: piece 481 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:26 torrent: piece 482 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:32 torrent: piece 483 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:36 torrent: piece 484 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:40 torrent: piece 485 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:45 torrent: piece 486 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:50 torrent: piece 487 complete (4194304 bytes), 40.67% done
+2026/06/08 18:33:55 torrent: piece 488 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:00 torrent: piece 489 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:04 torrent: piece 490 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:08 torrent: piece 491 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:12 torrent: piece 492 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:15 torrent: piece 493 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:18 torrent: piece 494 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:21 torrent: piece 495 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:25 torrent: piece 496 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:29 torrent: piece 497 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:33 torrent: piece 498 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:36 torrent: piece 499 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:40 torrent: piece 500 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:44 torrent: piece 501 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:48 torrent: piece 502 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:51 torrent: piece 503 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:55 torrent: piece 504 complete (4194304 bytes), 40.67% done
+2026/06/08 18:34:59 torrent: piece 505 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:02 torrent: piece 506 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:06 torrent: piece 507 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:10 torrent: piece 508 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:14 torrent: piece 509 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:18 torrent: piece 510 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:22 torrent: piece 511 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:25 torrent: piece 512 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:29 torrent: piece 513 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:32 torrent: piece 514 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:36 torrent: piece 515 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:40 torrent: piece 516 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:45 torrent: piece 517 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:50 torrent: piece 518 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:53 torrent: piece 519 complete (4194304 bytes), 40.67% done
+2026/06/08 18:35:57 torrent: piece 520 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:02 torrent: piece 521 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:06 torrent: piece 522 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:09 torrent: piece 523 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:13 torrent: piece 524 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:16 torrent: piece 525 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:20 torrent: piece 526 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:24 torrent: piece 527 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:30 torrent: piece 528 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:34 torrent: piece 529 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:38 torrent: piece 530 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:44 torrent: piece 531 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:47 torrent: piece 532 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:51 torrent: piece 533 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:55 torrent: piece 534 complete (4194304 bytes), 40.67% done
+2026/06/08 18:36:58 torrent: piece 535 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:02 torrent: piece 536 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:05 torrent: piece 537 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:10 torrent: piece 538 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:14 torrent: piece 539 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:17 torrent: piece 540 complete (2995090 bytes), 40.67% done
+2026/06/08 18:37:21 torrent: piece 276 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:26 torrent: piece 287 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:30 torrent: piece 273 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:34 torrent: piece 304 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:37 torrent: piece 270 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:41 torrent: piece 315 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:45 torrent: piece 305 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:50 torrent: piece 321 complete (4194304 bytes), 40.67% done
+2026/06/08 18:37:56 torrent: piece 322 complete (4194304 bytes), 40.67% done
+2026/06/08 18:38:01 torrent: piece 310 complete (4194304 bytes), 40.67% done
+2026/06/08 18:38:04 torrent: piece 317 complete (4194304 bytes), 40.67% done
+2026/06/08 18:38:08 torrent: piece 312 complete (4194304 bytes), 40.67% done
+2026/06/08 18:38:12 torrent: piece 313 complete (4194304 bytes), 40.67% done
+2026/06/08 18:38:17 torrent: piece 307 complete (4194304 bytes), 40.67% done
+2026/06/08 18:38:20 torrent: piece 308 complete (4194304 bytes), 40.67% done
+2026/06/08 18:38:25 torrent: piece 306 complete (4194304 bytes), 40.67% done
+2026/06/08 18:44:28 manager: got batch of 100 peers from tracker
+2026/06/08 18:44:29 peer 146.70.198.20:59270: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 146.70.198.20:59270: sending INTERESTED
+2026/06/08 18:44:29 peer 146.70.198.20:59270: awaitReady: read tcp 206.87.114.168:56808->146.70.198.20:59270: read: connection reset by peer
+2026/06/08 18:44:29 peer: write error to 146.70.198.20:59270: write tcp 206.87.114.168:56808->146.70.198.20:59270: use of closed network connection
+2026/06/08 18:44:29 peer 87.110.12.249:23190: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 87.110.12.249:23190: sending INTERESTED
+2026/06/08 18:44:29 peer 223.18.118.162:19138: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 223.18.118.162:19138: sending INTERESTED
+2026/06/08 18:44:29 peer 89.147.85.73:52001: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 89.147.85.73:52001: sending INTERESTED
+2026/06/08 18:44:29 peer 113.172.164.187:60998: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 113.172.164.187:60998: sending INTERESTED
+2026/06/08 18:44:29 peer 181.2.66.92:58330: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 181.2.66.92:58330: sending INTERESTED
+2026/06/08 18:44:29 peer 191.101.157.204:38142: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 191.101.157.204:38142: sending INTERESTED
+2026/06/08 18:44:29 peer 165.0.189.53:29673: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 165.0.189.53:29673: sending INTERESTED
+2026/06/08 18:44:29 peer 223.18.118.162:19138: UNCHOKE (awaitReady)
+2026/06/08 18:44:29 peer 110.32.160.210:49920: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 110.32.160.210:49920: sending INTERESTED
+2026/06/08 18:44:29 peer 189.51.208.41:51413: connected, sending bitfield (68 bytes)
+2026/06/08 18:44:29 peer 189.51.208.41:51413: sending INTERESTED
+2026/06/08 18:44:32 peer 189.51.208.41:51413: awaitReady: EOF
+2026/06/08 18:44:34 peer 191.101.157.204:38142: awaitReady: read tcp 206.87.114.168:56857->191.101.157.204:38142: read: connection reset by peer
+2026/06/08 18:44:43 peer: write error to 223.18.118.162:19138: write tcp 206.87.114.168:56825->223.18.118.162:19138: write: broken pipe
+2026/06/08 18:44:50 peer 110.32.160.210:49920: UNCHOKE (awaitReady)
+2026/06/08 18:45:03 peer: write error to 181.2.66.92:58330: write tcp 206.87.114.168:56844->181.2.66.92:58330: write: broken pipe
+2026/06/08 18:45:26 peer 113.172.164.187:60998: UNCHOKE (awaitReady)
+2026/06/08 18:46:29 peer 165.0.189.53:29673: awaitReady: timeout waiting for bitfield+unchoke (choked=true, sawBitfield=true)
+2026/06/08 18:46:30 peer 89.147.85.73:52001: awaitReady: timeout waiting for bitfield+unchoke (choked=true, sawBitfield=true)
+2026/06/08 18:46:33 peer 87.110.12.249:23190: awaitReady: read tcp 206.87.114.168:56830->87.110.12.249:23190: i/o timeout
+2026/06/08 18:48:43 peer: write error to 113.172.164.187:60998: write tcp 206.87.114.168:56836->113.172.164.187:60998: write: broken pipe

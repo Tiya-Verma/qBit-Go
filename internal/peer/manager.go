@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -35,13 +36,14 @@ type connEntry struct {
 
 // Manager maintains the peer connection pool for one torrent.
 type Manager struct {
-	tf       *torrent.TorrentFile
-	ourID    [20]byte
-	bf       bitfield.Bitfield
-	sched    *scheduler.Scheduler
-	storage  BlockReader
-	limiter  *ratelimit.Limiter
-	maxConns int
+	tf         *torrent.TorrentFile
+	ourID      [20]byte
+	listenPort int
+	bf         bitfield.Bitfield
+	sched      *scheduler.Scheduler
+	storage    BlockReader
+	limiter    *ratelimit.Limiter
+	maxConns   int
 
 	mu    sync.RWMutex
 	conns map[string]*connEntry // addr → entry
@@ -56,6 +58,7 @@ type Manager struct {
 func NewManager(
 	tf *torrent.TorrentFile,
 	ourID [20]byte,
+	listenPort int,
 	bf bitfield.Bitfield,
 	sched *scheduler.Scheduler,
 	stor BlockReader,
@@ -63,13 +66,14 @@ func NewManager(
 	maxConns int,
 ) *Manager {
 	return &Manager{
-		tf:       tf,
-		ourID:    ourID,
-		bf:       bf,
-		sched:    sched,
-		storage:  stor,
-		limiter:  limiter,
-		maxConns: maxConns,
+		tf:         tf,
+		ourID:      ourID,
+		listenPort: listenPort,
+		bf:         bf,
+		sched:      sched,
+		storage:    stor,
+		limiter:    limiter,
+		maxConns:   maxConns,
 		conns:    make(map[string]*connEntry),
 		peers:    make(chan []net.TCPAddr, 32),
 		work:     make(chan *scheduler.PieceWork, 256),
@@ -141,6 +145,7 @@ func (m *Manager) Run() {
 	for {
 		select {
 		case batch := <-m.peers:
+			log.Printf("manager: got batch of %d peers from tracker", len(batch))
 			for _, addr := range batch {
 				m.maybeConnect(addr)
 			}
@@ -188,6 +193,11 @@ func (m *Manager) Stats() ManagerStats {
 }
 
 func (m *Manager) maybeConnect(addr net.TCPAddr) {
+	// Skip loopback and connections to our own listen port (self-connections).
+	if addr.IP.IsLoopback() || addr.Port == m.listenPort && isOwnIP(addr.IP) {
+		return
+	}
+
 	m.mu.RLock()
 	_, exists := m.conns[addr.String()]
 	count := len(m.conns)
@@ -213,10 +223,12 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 		m.conns[addr.String()] = entry
 		m.mu.Unlock()
 
+		log.Printf("peer %s: connected, sending bitfield (%d bytes)", c.Addr.String(), len(m.bf))
 		c.Send(FormatBitfield(m.bf))
 		m.sched.AddPeerBitfield(c.Bitfield)
 
-		go m.tryStartPEX(c)
+		// Do not run tryStartPEX here — it reads from c.conn concurrently with
+		// downloadFromPeer, causing a race where the Unchoke message gets stolen.
 		go m.downloadFromPeer(entry)
 	}()
 }
@@ -231,8 +243,16 @@ func (m *Manager) downloadFromPeer(e *connEntry) {
 		c.Close()
 	}()
 
+	log.Printf("peer %s: sending INTERESTED", c.Addr.String())
 	c.Send(&Message{ID: MsgInterested})
 	c.Interested = true
+
+	// Wait for the peer's bitfield + unchoke before requesting any piece.
+	// Otherwise we may request pieces they don't have, which causes RSTs.
+	if err := m.awaitReady(c); err != nil {
+		log.Printf("peer %s: awaitReady: %v", c.Addr.String(), err)
+		return
+	}
 
 	for {
 		select {
@@ -240,10 +260,18 @@ func (m *Manager) downloadFromPeer(e *connEntry) {
 			if !ok {
 				return
 			}
+			// Skip pieces this peer doesn't have; requeue for someone else.
+			if len(c.Bitfield) > 0 && !c.Bitfield.HasPiece(work.Index) {
+				select {
+				case m.work <- work:
+				case <-m.quit:
+					return
+				}
+				continue
+			}
 			data, err := c.Download(work)
 			if err != nil {
 				log.Printf("manager: download piece %d from %s: %v", work.Index, c.Addr.String(), err)
-				// Return work to queue so another peer can try.
 				select {
 				case m.work <- work:
 				default:
@@ -257,6 +285,50 @@ func (m *Manager) downloadFromPeer(e *connEntry) {
 			}
 		case <-m.quit:
 			return
+		}
+	}
+}
+
+// awaitReady blocks until the peer has sent its bitfield AND unchoked us, or
+// the deadline expires. Reads any interim messages (Have, Bitfield, Choke,
+// Unchoke, Extended) and applies them. Returns once the peer is in a state
+// where requesting pieces is safe.
+func (m *Manager) awaitReady(c *Conn) error {
+	deadline := time.Now().Add(2 * time.Minute)
+	sawBitfield := false
+	for {
+		if !c.Choked && sawBitfield {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for bitfield+unchoke (choked=%v, sawBitfield=%v)", c.Choked, sawBitfield)
+		}
+		c.conn.SetReadDeadline(time.Now().Add(2 * time.Minute)) //nolint:errcheck
+		msg, err := Read(c.conn)
+		if err != nil {
+			return err
+		}
+		if msg == nil {
+			continue // keepalive
+		}
+		switch msg.ID {
+		case MsgBitfield:
+			c.Bitfield = ParseBitfield(msg)
+			sawBitfield = true
+		case MsgHave:
+			if idx, err := ParseHave(msg); err == nil {
+				if c.Bitfield == nil {
+					c.Bitfield = make([]byte, (len(m.tf.PieceHashes)+7)/8)
+				}
+				c.Bitfield.SetPiece(idx)
+				sawBitfield = true // implicit — peer is announcing pieces they have
+			}
+		case MsgUnchoke:
+			log.Printf("peer %s: UNCHOKE (awaitReady)", c.Addr.String())
+			c.Choked = false
+		case MsgChoke:
+			log.Printf("peer %s: CHOKE (awaitReady)", c.Addr.String())
+			c.Choked = true
 		}
 	}
 }
@@ -373,6 +445,30 @@ func (m *Manager) tryStartPEX(c *Conn) {
 			return
 		}
 	}
+}
+
+// isOwnIP returns true if ip matches any local interface address.
+func isOwnIP(ip net.IP) bool {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+	for _, iface := range ifaces {
+		addrs, _ := iface.Addrs()
+		for _, a := range addrs {
+			var localIP net.IP
+			switch v := a.(type) {
+			case *net.IPNet:
+				localIP = v.IP
+			case *net.IPAddr:
+				localIP = v.IP
+			}
+			if localIP != nil && localIP.Equal(ip) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // getConnectedAddrs returns the TCP addresses of all currently connected peers.
