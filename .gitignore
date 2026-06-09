@@ -12,6 +12,9 @@ downloads/
 *.out
 vendor/
 
+# Logs
+*.log
+
 # Editor / OS
 .DS_Store
 .idea/
