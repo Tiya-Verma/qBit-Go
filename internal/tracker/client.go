@@ -135,7 +135,9 @@ func (m *MultiTracker) AnnounceLoop(ctx context.Context, peers chan<- []net.TCPA
 		event = ""
 		select {
 		case peers <- resp.Peers:
-		default:
+		case <-ctx.Done():
+			m.Announce("stopped") //nolint:errcheck
+			return
 		}
 		select {
 		case <-ctx.Done():

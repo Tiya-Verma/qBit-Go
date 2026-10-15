@@ -89,6 +89,7 @@ type TorrentSummary struct {
 	Progress      float64   `json:"progress"`
 	DownloadSpeed int64     `json:"downloadSpeed"`
 	UploadSpeed   int64     `json:"uploadSpeed"`
+	Peers         int64     `json:"peers"`
 	AddedAt       time.Time `json:"addedAt"`
 }
 
@@ -103,6 +104,7 @@ func toSummary(t *torrent.Torrent) TorrentSummary {
 		Progress:      t.Progress(),
 		DownloadSpeed: t.Stats.DownloadSpeed,
 		UploadSpeed:   t.Stats.UploadSpeed,
+		Peers:         t.Stats.Peers,
 		AddedAt:       t.AddedAt,
 	}
 }

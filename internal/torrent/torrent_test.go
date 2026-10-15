@@ -50,3 +50,20 @@ func TestParseFileMissingInfo(t *testing.T) {
 	_, err := torrent.ParseFile([]byte("d8:announce15:http://test.come"))
 	assert.Error(t, err)
 }
+
+// TestTrackers_FallsBackToAnnounce guards single-tracker torrents. Reading
+// announce-list alone left them with no trackers at all, so they discovered
+// no peers and sat at zero bytes forever.
+func TestTrackers_FallsBackToAnnounce(t *testing.T) {
+	single := &torrent.TorrentFile{Announce: "http://bttracker.debian.org:6969/announce"}
+	assert.Equal(t, [][]string{{"http://bttracker.debian.org:6969/announce"}}, single.Trackers())
+
+	// announce-list wins when present.
+	multi := &torrent.TorrentFile{
+		Announce:     "http://primary/announce",
+		AnnounceList: [][]string{{"http://a/announce"}, {"http://b/announce"}},
+	}
+	assert.Equal(t, [][]string{{"http://a/announce"}, {"http://b/announce"}}, multi.Trackers())
+
+	assert.Nil(t, (&torrent.TorrentFile{}).Trackers())
+}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +33,7 @@ type EngineStats struct {
 	TotalUpSpeed    int64 `json:"totalUpSpeed"`
 	TotalDownloaded int64 `json:"totalDownloaded"`
 	TotalUploaded   int64 `json:"totalUploaded"`
+	ConnectedPeers  int   `json:"connectedPeers"`
 	DHTPeers        int   `json:"dhtPeers"`
 	ListenPort      int   `json:"listenPort"`
 }
@@ -287,9 +289,9 @@ func (e *Engine) fetchMetadata(placeholder *session, m *magnet.Magnet) {
 // it in parallel with the tracker announce instead of sequentially.
 func (e *Engine) peersForMagnet(m *magnet.Magnet) []net.TCPAddr {
 	var (
-		mu       sync.Mutex
-		peers    []net.TCPAddr
-		wg       sync.WaitGroup
+		mu    sync.Mutex
+		peers []net.TCPAddr
+		wg    sync.WaitGroup
 	)
 
 	if e.dht != nil {
@@ -359,7 +361,7 @@ func (e *Engine) startSessionReusing(t *torrent.Torrent, tf *torrent.TorrentFile
 		Port:     uint16(e.cfg.ListenPort),
 		Left:     tf.TotalLength(),
 	}
-	mt := tracker.NewMultiTracker(tf.AnnounceList, params)
+	mt := tracker.NewMultiTracker(tf.Trackers(), params)
 	mgr := peer.NewManager(tf, e.peerID, e.cfg.ListenPort, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
 
 	// Update the existing Torrent object in-place.
@@ -446,7 +448,15 @@ func (e *Engine) Get(infoHash [20]byte) (*torrent.Torrent, error) {
 	return sess.t, nil
 }
 
-// List returns all active torrents.
+// List returns all active torrents, oldest first.
+//
+// The ordering matters: sessions live in a map, and Go randomizes map
+// iteration order on every range. Because the WebSocket pushes a full
+// torrent_update every second, an unsorted list made rows swap places once a
+// second in the UI. Sorting by AddedAt keeps existing transfers in place and
+// appends a newly added one at the end; the info hash breaks ties so torrents
+// added in the same instant (or restored from the database with identical
+// timestamps) still have a stable order.
 func (e *Engine) List() []*torrent.Torrent {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -454,6 +464,12 @@ func (e *Engine) List() []*torrent.Torrent {
 	for _, sess := range e.sessions {
 		out = append(out, sess.t)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].AddedAt.Equal(out[j].AddedAt) {
+			return out[i].AddedAt.Before(out[j].AddedAt)
+		}
+		return out[i].File.InfoHashString() < out[j].File.InfoHashString()
+	})
 	return out
 }
 
@@ -472,6 +488,7 @@ func (e *Engine) Stats() EngineStats {
 		case torrent.StateSeeding:
 			s.SeedingTorrents++
 		}
+		s.ConnectedPeers += int(sess.t.Stats.Peers)
 		s.TotalDownSpeed += sess.t.Stats.DownloadSpeed
 		s.TotalUpSpeed += sess.t.Stats.UploadSpeed
 		s.TotalDownloaded += sess.t.Stats.Downloaded
@@ -527,7 +544,7 @@ func (e *Engine) startSession(tf *torrent.TorrentFile, _ []byte, bf bitfield.Bit
 		Port:     uint16(e.cfg.ListenPort),
 		Left:     tf.TotalLength(),
 	}
-	mt := tracker.NewMultiTracker(tf.AnnounceList, params)
+	mt := tracker.NewMultiTracker(tf.Trackers(), params)
 
 	mgr := peer.NewManager(tf, e.peerID, e.cfg.ListenPort, bf, sched, stor, e.limiter, e.cfg.MaxPerTorrent)
 
@@ -595,21 +612,36 @@ func (e *Engine) runSession(sess *session) {
 		}
 	}()
 
-	// Sample byte counters every second to compute rolling download/upload speeds.
+	// Sample byte counters every second to compute rolling download/upload
+	// speeds. These read the manager's cumulative wire counters rather than
+	// Stats.Downloaded: that one only advances when a whole piece verifies, so
+	// most one-second windows would sample no change and report zero.
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
-		prevDown := atomic.LoadInt64(&sess.t.Stats.Downloaded)
-		prevUp := atomic.LoadInt64(&sess.t.Stats.Uploaded)
+		var prevDown, prevUp int64
+		var avgDown, avgUp float64
+		// Blocks arrive in bursts, so a raw one-second delta swings between a
+		// few hundred KB/s and zero while a transfer is perfectly healthy.
+		// Smooth it into the rolling average the field is documented to hold.
+		const alpha = 0.4
 		for {
 			select {
 			case <-ticker.C:
-				curDown := atomic.LoadInt64(&sess.t.Stats.Downloaded)
-				curUp := atomic.LoadInt64(&sess.t.Stats.Uploaded)
-				atomic.StoreInt64(&sess.t.Stats.DownloadSpeed, curDown-prevDown)
-				atomic.StoreInt64(&sess.t.Stats.UploadSpeed, curUp-prevUp)
-				prevDown = curDown
-				prevUp = curUp
+				ms := sess.peers.Stats()
+				curDown, curUp := ms.TotalDownloaded, ms.TotalUploaded
+				if d := curDown - prevDown; d >= 0 {
+					avgDown = alpha*float64(d) + (1-alpha)*avgDown
+					atomic.StoreInt64(&sess.t.Stats.DownloadSpeed, int64(avgDown))
+				}
+				if u := curUp - prevUp; u >= 0 {
+					avgUp = alpha*float64(u) + (1-alpha)*avgUp
+					atomic.StoreInt64(&sess.t.Stats.UploadSpeed, int64(avgUp))
+				}
+				// Uploaded was never recorded anywhere, so it always read zero.
+				atomic.StoreInt64(&sess.t.Stats.Uploaded, curUp)
+				atomic.StoreInt64(&sess.t.Stats.Peers, int64(ms.Connected))
+				prevDown, prevUp = curDown, curUp
 			case <-sess.quit:
 				return
 			}

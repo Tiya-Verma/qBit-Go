@@ -173,3 +173,52 @@ func TestShutdown_FreshEngine(t *testing.T) {
 	require.NoError(t, err)
 	assert.NoError(t, e.Shutdown(), "Shutdown on a fresh engine must return nil")
 }
+
+// ---- List ordering ----
+
+// TestList_StableOrderAcrossCalls guards against the sessions map's randomized
+// iteration order leaking into the API. The WebSocket pushes a full torrent
+// list every second, so an unordered List() made rows swap places in the UI
+// once a second whenever more than one torrent was active.
+func TestList_StableOrderAcrossCalls(t *testing.T) {
+	e, err := New(testConfig())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		drainPlaceholderSessions(e)
+		e.Shutdown() //nolint:errcheck
+	})
+
+	// Several magnets, added in a known order.
+	uris := []string{
+		"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=First",
+		"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&dn=Second",
+		"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc&dn=Third",
+		"magnet:?xt=urn:btih:dddddddddddddddddddddddddddddddddddddddd&dn=Fourth",
+	}
+	for _, uri := range uris {
+		_, err := e.AddMagnet(uri)
+		require.NoError(t, err)
+		// Keep AddedAt strictly increasing so insertion order is well defined.
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	first := e.List()
+	require.Len(t, first, len(uris))
+
+	// Insertion order is preserved: a newly added torrent lands at the end
+	// rather than displacing one already in progress.
+	names := func(ts []*torrent.Torrent) []string {
+		out := make([]string, len(ts))
+		for i, tr := range ts {
+			out[i] = tr.File.Name
+		}
+		return out
+	}
+	assert.Equal(t, []string{"First", "Second", "Third", "Fourth"}, names(first))
+
+	// Repeated calls must not reshuffle. Without sorting this fails within a
+	// handful of iterations, because Go randomizes map iteration per range.
+	for i := 0; i < 50; i++ {
+		assert.Equal(t, names(first), names(e.List()), "List() order changed on call %d", i)
+	}
+}

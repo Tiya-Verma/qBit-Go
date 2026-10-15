@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -25,7 +26,16 @@ type BlockReader interface {
 type ManagerStats struct {
 	Connected int
 	Choked    int
-	Uploaded  int64
+	// Uploaded is the current tit-for-tat window only: the choking algorithm
+	// resets each peer's counter every round, so it cannot be used as a total.
+	Uploaded int64
+	// TotalDownloaded and TotalUploaded are cumulative wire bytes for this
+	// torrent, never reset. Transfer rates are derived from these.
+	TotalDownloaded int64
+	TotalUploaded   int64
+	// DialFailures counts peers we could not reach. A torrent with many
+	// failures and no connections is unreachable, not merely idle.
+	DialFailures int64
 }
 
 // connEntry tracks a connection plus per-peer upload stats.
@@ -47,6 +57,10 @@ type Manager struct {
 
 	mu    sync.RWMutex
 	conns map[string]*connEntry // addr → entry
+
+	totalDownloaded atomic.Int64
+	totalUploaded   atomic.Int64
+	dialFailures    atomic.Int64
 
 	peers   chan []net.TCPAddr
 	work    chan *scheduler.PieceWork
@@ -74,11 +88,11 @@ func NewManager(
 		storage:    stor,
 		limiter:    limiter,
 		maxConns:   maxConns,
-		conns:    make(map[string]*connEntry),
-		peers:    make(chan []net.TCPAddr, 32),
-		work:     make(chan *scheduler.PieceWork, 256),
-		results:  make(chan *scheduler.PieceResult, 64),
-		quit:     make(chan struct{}),
+		conns:      make(map[string]*connEntry),
+		peers:      make(chan []net.TCPAddr, 32),
+		work:       make(chan *scheduler.PieceWork, workQueueCapacity(tf)),
+		results:    make(chan *scheduler.PieceResult, 64),
+		quit:       make(chan struct{}),
 	}
 }
 
@@ -119,6 +133,7 @@ func (m *Manager) AcceptInbound(c net.Conn) {
 		addr = &net.TCPAddr{}
 	}
 	conn := newConn(c, m.tf.InfoHash, remotePeerID, *addr)
+	conn.BytesIn = &m.totalDownloaded
 
 	m.mu.Lock()
 	if len(m.conns) >= m.maxConns {
@@ -186,9 +201,12 @@ func (m *Manager) Stats() ManagerStats {
 		uploaded += e.uploaded.Load()
 	}
 	return ManagerStats{
-		Connected: len(m.conns),
-		Choked:    choked,
-		Uploaded:  uploaded,
+		TotalDownloaded: m.totalDownloaded.Load(),
+		TotalUploaded:   m.totalUploaded.Load(),
+		DialFailures:    m.dialFailures.Load(),
+		Connected:       len(m.conns),
+		Choked:          choked,
+		Uploaded:        uploaded,
 	}
 }
 
@@ -210,6 +228,7 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 	go func() {
 		c, err := Dial(addr, m.tf.InfoHash, m.ourID)
 		if err != nil {
+			m.dialFailures.Add(1)
 			return
 		}
 
@@ -219,6 +238,7 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 			c.Close()
 			return
 		}
+		c.BytesIn = &m.totalDownloaded
 		entry := &connEntry{conn: c}
 		m.conns[addr.String()] = entry
 		m.mu.Unlock()
@@ -231,6 +251,39 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 		// downloadFromPeer, causing a race where the Unchoke message gets stolen.
 		go m.downloadFromPeer(entry)
 	}()
+}
+
+// workQueueCapacity sizes the work channel to hold every piece of the torrent.
+// This is what makes requeueing safe: a peer that pulls a piece and puts it
+// back can never find the channel full, because the pieces buffered plus the
+// pieces currently held by peers never exceed the total piece count.
+func workQueueCapacity(tf *torrent.TorrentFile) int {
+	const min = 256
+	if tf == nil || len(tf.PieceHashes) < min {
+		return min
+	}
+	return len(tf.PieceHashes)
+}
+
+// requeue returns a piece to the work queue without ever blocking the caller.
+//
+// This must not block: the peer goroutines are the only consumers of m.work,
+// so a peer that blocks while sending to it stops draining it, and the queue
+// can never recover. A buffered send is expected to succeed given the channel
+// is sized to the piece count; the goroutine fallback keeps that from being a
+// correctness requirement.
+func (m *Manager) requeue(w *scheduler.PieceWork) {
+	select {
+	case m.work <- w:
+	case <-m.quit:
+	default:
+		go func() {
+			select {
+			case m.work <- w:
+			case <-m.quit:
+			}
+		}()
+	}
 }
 
 func (m *Manager) downloadFromPeer(e *connEntry) {
@@ -254,6 +307,7 @@ func (m *Manager) downloadFromPeer(e *connEntry) {
 		return
 	}
 
+	misses := 0
 	for {
 		select {
 		case work, ok := <-m.work:
@@ -262,20 +316,27 @@ func (m *Manager) downloadFromPeer(e *connEntry) {
 			}
 			// Skip pieces this peer doesn't have; requeue for someone else.
 			if len(c.Bitfield) > 0 && !c.Bitfield.HasPiece(work.Index) {
-				select {
-				case m.work <- work:
-				case <-m.quit:
-					return
+				m.requeue(work)
+				// Once we have cycled the entire queue without finding a piece
+				// this peer can serve, stop spinning on it. Without this, a
+				// peer holding few pieces burns a core rejecting work as fast
+				// as the channel can hand it over.
+				misses++
+				if misses > len(m.work) {
+					misses = 0
+					select {
+					case <-time.After(500 * time.Millisecond):
+					case <-m.quit:
+						return
+					}
 				}
 				continue
 			}
+			misses = 0
 			data, err := c.Download(work)
 			if err != nil {
 				log.Printf("manager: download piece %d from %s: %v", work.Index, c.Addr.String(), err)
-				select {
-				case m.work <- work:
-				default:
-				}
+				m.requeue(work)
 				return
 			}
 			select {
@@ -294,18 +355,37 @@ func (m *Manager) downloadFromPeer(e *connEntry) {
 // Unchoke, Extended) and applies them. Returns once the peer is in a state
 // where requesting pieces is safe.
 func (m *Manager) awaitReady(c *Conn) error {
-	deadline := time.Now().Add(2 * time.Minute)
+	start := time.Now()
+	deadline := start.Add(2 * time.Minute)
+
+	// Only a Bitfield establishes which pieces the peer actually holds. A Have
+	// announces exactly one piece, so accepting a single Have as "ready" left
+	// us believing a full seed owned one piece: we downloaded that piece and
+	// then rejected every other one. Haves still populate the bitfield, but a
+	// peer that sends them without a bitfield only becomes ready after a short
+	// grace period, since BEP 3 requires the bitfield right after the
+	// handshake if it is sent at all.
+	const bitfieldGrace = 5 * time.Second
 	sawBitfield := false
+	haves := 0
+
 	for {
-		if !c.Choked && sawBitfield {
+		ready := sawBitfield || (haves > 0 && time.Since(start) >= bitfieldGrace)
+		if !c.Choked && ready {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for bitfield+unchoke (choked=%v, sawBitfield=%v)", c.Choked, sawBitfield)
+			return fmt.Errorf("timeout waiting for bitfield+unchoke (choked=%v, sawBitfield=%v, haves=%d)", c.Choked, sawBitfield, haves)
 		}
-		c.conn.SetReadDeadline(time.Now().Add(2 * time.Minute)) //nolint:errcheck
+		// Short read deadline so readiness is re-evaluated while the peer is
+		// quiet, rather than blocking here for the full two minutes.
+		c.conn.SetReadDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
 		msg, err := Read(c.conn)
 		if err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				continue // re-evaluate readiness, then keep waiting
+			}
 			return err
 		}
 		if msg == nil {
@@ -321,7 +401,7 @@ func (m *Manager) awaitReady(c *Conn) error {
 					c.Bitfield = make([]byte, (len(m.tf.PieceHashes)+7)/8)
 				}
 				c.Bitfield.SetPiece(idx)
-				sawBitfield = true // implicit — peer is announcing pieces they have
+				haves++
 			}
 		case MsgUnchoke:
 			log.Printf("peer %s: UNCHOKE (awaitReady)", c.Addr.String())
@@ -368,7 +448,8 @@ func (m *Manager) serveUpload(e *connEntry) {
 				continue
 			}
 			c.Send(FormatPiece(idx, begin, block))
-			e.uploaded.Add(int64(len(block)))
+			e.uploaded.Add(int64(len(block))) // per-peer window, reset each round
+			m.totalUploaded.Add(int64(len(block)))
 		case MsgBitfield:
 			c.Bitfield = ParseBitfield(msg)
 		case MsgHave:

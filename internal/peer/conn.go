@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/tiyaverma/qbit-go/internal/bitfield"
@@ -28,6 +29,12 @@ type Conn struct {
 
 	outbound chan *Message
 	quit     chan struct{}
+
+	// BytesIn, when set, accumulates every payload byte received from this
+	// peer. Transfer rates are measured here rather than at piece completion:
+	// a piece can take many seconds to finish, so piece-granular accounting
+	// reports zero for most one-second sample windows.
+	BytesIn *atomic.Int64
 }
 
 // newConn wraps an established net.Conn into a Conn after handshake.
@@ -139,6 +146,9 @@ func (c *Conn) Download(work *scheduler.PieceWork) ([]byte, error) {
 			}
 			copy(buf[begin:], data)
 			downloaded += len(data)
+			if c.BytesIn != nil {
+				c.BytesIn.Add(int64(len(data)))
+			}
 			inFlight--
 		}
 	}

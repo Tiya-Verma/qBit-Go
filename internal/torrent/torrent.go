@@ -14,13 +14,13 @@ import (
 type State int
 
 const (
-	StateFetching   State = iota // fetching metadata (magnet link)
-	StateChecking                // verifying existing data on disk
-	StateDownloading             // actively downloading
-	StateSeeding                 // upload only, download complete
-	StatePaused                  // user-paused
-	StateStopped                 // no activity
-	StateError                   // unrecoverable error
+	StateFetching    State = iota // fetching metadata (magnet link)
+	StateChecking                 // verifying existing data on disk
+	StateDownloading              // actively downloading
+	StateSeeding                  // upload only, download complete
+	StatePaused                   // user-paused
+	StateStopped                  // no activity
+	StateError                    // unrecoverable error
 )
 
 func (s State) String() string {
@@ -89,12 +89,29 @@ func (tf *TorrentFile) PieceSize(index int) int {
 	return tf.PieceLength
 }
 
+// Trackers returns the announce tiers for this torrent.
+//
+// BEP 12's announce-list is optional: single-tracker torrents carry only the
+// announce key, and a great many do. Reading announce-list alone left those
+// torrents with no trackers at all, so they never discovered a single peer
+// and could only ever fall back to DHT.
+func (tf *TorrentFile) Trackers() [][]string {
+	if len(tf.AnnounceList) > 0 {
+		return tf.AnnounceList
+	}
+	if tf.Announce != "" {
+		return [][]string{{tf.Announce}}
+	}
+	return nil
+}
+
 // Stats holds live counters for a torrent; fields are updated atomically.
 type Stats struct {
 	Downloaded    int64
 	Uploaded      int64
 	DownloadSpeed int64 // bytes/sec, rolling average
 	UploadSpeed   int64 // bytes/sec, rolling average
+	Peers         int64 // currently connected peers
 }
 
 // FastResume is persisted between sessions so verified pieces are not rechecked.
