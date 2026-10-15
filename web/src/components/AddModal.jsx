@@ -1,19 +1,31 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { addTorrentFile, addMagnet } from '../api.js'
 
+/** A modal sheet: one focused task, dismissed with Cancel or completed with Add. */
 export default function AddModal({ onClose, onAdded }) {
   const [tab, setTab] = useState('file')
   const [magnet, setMagnet] = useState('')
+  const [file, setFile] = useState(null)
+  const [dragging, setDragging] = useState(false)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef(null)
 
-  async function handleFile() {
-    const file = fileRef.current?.files?.[0]
-    if (!file) { setError('Select a .torrent file'); return }
-    setBusy(true); setError(null)
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  async function submit() {
+    setError(null)
+    if (tab === 'file' && !file) { setError('Choose a torrent file to continue.'); return }
+    if (tab === 'magnet' && !magnet.trim()) { setError('Enter a magnet link to continue.'); return }
+
+    setBusy(true)
     try {
-      await addTorrentFile(file)
+      if (tab === 'file') await addTorrentFile(file)
+      else await addMagnet(magnet.trim())
       onAdded()
     } catch (e) {
       setError(e.message)
@@ -22,91 +34,111 @@ export default function AddModal({ onClose, onAdded }) {
     }
   }
 
-  async function handleMagnet() {
-    if (!magnet.trim()) { setError('Enter a magnet link'); return }
-    setBusy(true); setError(null)
-    try {
-      await addMagnet(magnet.trim())
-      onAdded()
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setBusy(false)
-    }
+  function dropFile(e) {
+    e.preventDefault()
+    setDragging(false)
+    const f = e.dataTransfer.files?.[0]
+    if (f) { setFile(f); setError(null) }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md mx-4 shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h2 className="font-semibold text-gray-100">Add Torrent</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-300 text-xl leading-none"
-          >
-            ×
-          </button>
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex animate-fade-in items-start justify-center bg-black/20 px-4 pt-16"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add Torrent"
+        className="w-full max-w-[460px] animate-sheet-in overflow-hidden rounded-alert bg-elevated shadow-[0_18px_60px_rgb(0_0_0/0.24)]"
+      >
+        <div className="px-6 pt-6">
+          <h2 className="text-headline">Add Torrent</h2>
+          <p className="mt-1 text-subhead text-secondary">
+            Choose a torrent file, or paste a magnet link.
+          </p>
+
+          {/* Segmented control: equal-width segments, nouns, text only. */}
+          <div className="mt-5 grid grid-cols-2 gap-0.5 rounded-[9px] bg-fill p-0.5">
+            {[['file', 'File'], ['magnet', 'Magnet']].map(([key, labelText]) => (
+              <button
+                key={key}
+                onClick={() => { setTab(key); setError(null) }}
+                aria-pressed={tab === key}
+                className={`h-8 rounded-[7px] text-subhead font-medium transition ${
+                  tab === key
+                    ? 'bg-elevated text-label shadow-[0_1px_3px_rgb(0_0_0/0.12)]'
+                    : 'text-secondary active:bg-fill-sm'
+                }`}
+              >
+                {labelText}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex border-b border-gray-800">
-          {['file', 'magnet'].map((t) => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setError(null) }}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                tab === t
-                  ? 'text-green-400 border-b-2 border-green-500'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {t === 'file' ? '.torrent File' : 'Magnet Link'}
-            </button>
-          ))}
-        </div>
-
-        <div className="p-5 space-y-4">
+        <div className="px-6 py-5">
           {tab === 'file' ? (
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Select .torrent file</label>
+            <>
+              {/* The input lives outside the button: nesting it would make
+                  input.click() bubble back and re-trigger the handler. */}
               <input
+                ref={fileRef}
                 type="file"
                 accept=".torrent"
-                ref={fileRef}
-                className="block w-full text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-gray-700 file:text-gray-200 file:text-sm hover:file:bg-gray-600 cursor-pointer"
+                className="hidden"
+                onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(null) }}
               />
-            </div>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={dropFile}
+                className={`w-full rounded-group border border-dashed px-4 py-9 text-center transition ${
+                  dragging ? 'border-blue bg-blue/5' : 'border-separator hover:bg-fill-sm'
+                }`}
+              >
+                {file ? (
+                  <span className="block truncate text-subhead font-medium">{file.name}</span>
+                ) : (
+                  <span className="block text-subhead text-secondary">
+                    Drag a torrent file here, or click to choose one
+                  </span>
+                )}
+              </button>
+            </>
           ) : (
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Magnet URI</label>
-              <input
-                type="text"
-                value={magnet}
-                onChange={(e) => setMagnet(e.target.value)}
-                placeholder="magnet:?xt=urn:btih:..."
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-green-600"
-              />
-            </div>
+            <input
+              type="text"
+              autoFocus
+              value={magnet}
+              onChange={(e) => { setMagnet(e.target.value); setError(null) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
+              placeholder="magnet:?xt=urn:btih:…"
+              className="w-full rounded-control border border-separator bg-elevated px-3 py-2 text-subhead text-label placeholder:text-tertiary focus:border-blue focus:outline focus:outline-[3px] focus:outline-blue/30"
+            />
           )}
 
-          {error && (
-            <p className="text-red-400 text-xs">{error}</p>
-          )}
+          {error && <p className="mt-3 text-subhead text-red">{error}</p>}
+        </div>
 
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              disabled={busy}
-              onClick={tab === 'file' ? handleFile : handleMagnet}
-              className="px-4 py-2 text-sm font-medium bg-green-600 hover:bg-green-500 text-white rounded transition-colors disabled:opacity-50"
-            >
-              {busy ? 'Adding…' : 'Add'}
-            </button>
-          </div>
+        {/* Trailing-aligned dismiss and confirm, default action last. */}
+        <div className="flex justify-end gap-2 border-t border-separator px-6 py-4">
+          <button
+            onClick={onClose}
+            className="h-9 rounded-control bg-fill px-4 text-subhead font-medium text-label transition active:bg-fill-strong"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="h-9 rounded-control bg-blue px-4 text-subhead font-medium text-white transition active:bg-blue/80 disabled:opacity-40"
+          >
+            {busy ? 'Adding…' : 'Add'}
+          </button>
         </div>
       </div>
     </div>

@@ -1,33 +1,39 @@
 import TorrentRow from './TorrentRow.jsx'
 
-export default function TorrentList({ torrents, onRefresh }) {
+export default function TorrentList({ torrents, onRefresh, onAdd }) {
   if (torrents.length === 0) {
     return (
-      <div className="text-center text-gray-600 mt-24 text-sm">
-        No torrents yet. Add one to get started.
+      <div className="rounded-group bg-elevated px-6 py-16 text-center">
+        <h2 className="text-title3 font-semibold">No Transfers</h2>
+        <p className="mx-auto mt-2 max-w-sm text-subhead text-secondary">
+          Add a torrent file or paste a magnet link, and it will appear here
+          with its progress.
+        </p>
+        <button
+          onClick={onAdd}
+          className="mt-6 h-9 rounded-control bg-fill px-4 text-subhead font-medium text-blue transition active:bg-fill-strong"
+        >
+          Add Torrent
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="rounded-lg border border-gray-800 overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-900 text-gray-500 text-xs uppercase tracking-wider">
-          <tr>
-            <th className="text-left px-4 py-2">Name</th>
-            <th className="text-left px-4 py-2 w-32">State</th>
-            <th className="text-left px-4 py-2 w-40">Progress</th>
-            <th className="text-right px-4 py-2 w-24">Down</th>
-            <th className="text-right px-4 py-2 w-24">Up</th>
-            <th className="px-4 py-2 w-24"></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-800">
-          {torrents.map((t) => (
-            <TorrentRow key={t.hash} torrent={t} onRefresh={onRefresh} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <section>
+      <h2 className="px-1 pb-2.5 text-footnote font-medium uppercase tracking-[0.05em] text-secondary">
+        All Torrents
+      </h2>
+      <ul className="overflow-hidden rounded-group bg-elevated">
+        {torrents.map((t, i) => (
+          <TorrentRow
+            key={t.hash}
+            torrent={t}
+            onRefresh={onRefresh}
+            last={i === torrents.length - 1}
+          />
+        ))}
+      </ul>
+    </section>
   )
 }

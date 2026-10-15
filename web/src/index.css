@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Apple Human Interface Guidelines — light appearance only.
+   Values are the iOS/macOS system palette from Apple Design Resources. */
+@layer base {
+  :root {
+    /* Accent + semantic system colors (rgb triplets so Tailwind can tint them) */
+    --system-blue:   0 122 255;
+    --system-green: 52 199  89;
+    --system-red:  255  59  48;
+    --system-orange: 255 149   0;
+
+    /* Labels */
+    --label:           rgb(0 0 0);
+    --secondary-label: rgb(60 60 67 / 0.60);
+    --tertiary-label:  rgb(60 60 67 / 0.30);
+
+    /* Separators */
+    --separator:        rgb(60 60 67 / 0.29);
+    --opaque-separator: rgb(198 198 200);
+
+    /* Backgrounds — rgb triplets, so translucent materials can tint them */
+    --system-background:  255 255 255;
+    --grouped-background: 242 242 247;
+
+    /* Fills — tracks, segmented-control grooves, hover and pressed states */
+    --system-fill:     rgb(120 120 128 / 0.20);
+    --tertiary-fill:   rgb(118 118 128 / 0.12);
+    --quaternary-fill: rgb(116 116 128 / 0.08);
+  }
+
+  html {
+    /* Light appearance only: keep form controls and scrollbars light even
+       when the OS is set to dark. */
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-grouped text-body text-label;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

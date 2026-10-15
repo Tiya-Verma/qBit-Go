@@ -9,7 +9,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:8080',
+      // ws:true is required for the /api/v1/ws live-update socket to upgrade.
+      '/api': { target: 'http://localhost:8080', ws: true },
     },
   },
 })

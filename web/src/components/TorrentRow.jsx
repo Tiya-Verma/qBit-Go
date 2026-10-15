@@ -1,109 +1,150 @@
 import { useState } from 'react'
 import { pauseTorrent, resumeTorrent, removeTorrent } from '../api.js'
+import { fmtSize, fmtSpeed, fmtRemaining, middleTruncate } from '../lib/format.js'
+import Alert from './Alert.jsx'
 
-const STATE_COLORS = {
-  downloading: 'bg-green-900 text-green-300',
-  seeding:     'bg-blue-900 text-blue-300',
-  paused:      'bg-yellow-900 text-yellow-300',
-  fetching:    'bg-purple-900 text-purple-300',
-  checking:    'bg-orange-900 text-orange-300',
-  error:       'bg-red-900 text-red-300',
-  stopped:     'bg-gray-800 text-gray-400',
+// Status text carries the state. Color is applied only where it has a single,
+// unambiguous meaning: red for a problem, green for a finished transfer.
+const STATUS = {
+  downloading: { label: 'Downloading',        tone: 'text-secondary' },
+  seeding:     { label: 'Seeding',            tone: 'text-green' },
+  fetching:    { label: 'Fetching metadata',  tone: 'text-secondary' },
+  checking:    { label: 'Verifying files',    tone: 'text-secondary' },
+  paused:      { label: 'Paused',             tone: 'text-secondary' },
+  stopped:     { label: 'Stopped',            tone: 'text-secondary' },
+  error:       { label: 'Unable to download', tone: 'text-red' },
 }
 
-function fmtSpeed(bps) {
-  if (!bps) return '—'
-  if (bps < 1024) return bps + ' B/s'
-  if (bps < 1024 * 1024) return (bps / 1024).toFixed(1) + ' KB/s'
-  return (bps / 1024 / 1024).toFixed(1) + ' MB/s'
-}
-
-function fmtSize(bytes) {
-  if (!bytes) return '0 B'
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-  return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB'
-}
-
-export default function TorrentRow({ torrent: t, onRefresh }) {
+export default function TorrentRow({ torrent: t, onRefresh, last }) {
   const [busy, setBusy] = useState(false)
+  const [askRemove, setAskRemove] = useState(false)
 
   async function act(fn) {
     setBusy(true)
     try { await fn() } finally { setBusy(false); onRefresh() }
   }
 
-  const pct = Math.round((t.progress ?? 0) * 100)
-  const isPaused = t.state === 'paused'
-  const stateClass = STATE_COLORS[t.state] ?? 'bg-gray-800 text-gray-400'
+  const status = STATUS[t.state] ?? { label: t.state, tone: 'text-secondary' }
+
+  // `downloaded` only counts the current session, so a resumed torrent reports
+  // 0 while progress is non-zero. Derive the completed size from progress.
+  const size = t.size ?? 0
+  const done = Math.max(t.downloaded ?? 0, Math.round((t.progress ?? 0) * size))
+  const pct = Math.min(100, Math.round((t.progress ?? 0) * 100))
+
+  const isPaused = t.state === 'paused' || t.state === 'stopped'
+  const isIndeterminate = t.state === 'fetching'
+  // Progress indicators are transient: they belong onscreen only while the
+  // operation is ongoing, so a seeding (complete) torrent shows none.
+  const showProgress = isIndeterminate || ['downloading', 'checking', 'paused', 'stopped'].includes(t.state)
+
+  const remaining = t.state === 'downloading' ? fmtRemaining(size - done, t.downloadSpeed) : null
+  // A transfer with no peers reads as stalled rather than merely slow, so say
+  // so instead of showing a bare 0 KB/s.
+  const active = t.state === 'downloading' || t.state === 'seeding'
+  const details = [
+    isIndeterminate ? null : `${fmtSize(done)} of ${fmtSize(size)}`,
+    t.downloadSpeed > 0 ? `↓ ${fmtSpeed(t.downloadSpeed)}` : null,
+    t.uploadSpeed > 0 ? `↑ ${fmtSpeed(t.uploadSpeed)}` : null,
+    active && t.peers > 0 ? `${t.peers} ${t.peers === 1 ? 'peer' : 'peers'}` : null,
+    active && !t.peers ? 'Looking for peers' : null,
+    remaining,
+  ].filter(Boolean)
 
   return (
-    <tr className="bg-gray-950 hover:bg-gray-900 transition-colors">
-      <td className="px-4 py-3 max-w-xs">
-        <div className="truncate font-medium text-gray-100" title={t.name}>
-          {t.name || t.hash}
-        </div>
-        <div className="text-xs text-gray-600 truncate font-mono">{t.hash}</div>
-      </td>
-
-      <td className="px-4 py-3">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stateClass}`}>
-          {t.state}
-        </span>
-      </td>
-
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="bg-green-500 h-full rounded-full transition-all"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <span className="text-xs text-gray-400 w-10 text-right">{pct}%</span>
-        </div>
-        <div className="text-xs text-gray-600 mt-0.5">
-          {fmtSize(t.downloaded)} / {fmtSize(t.size)}
-        </div>
-      </td>
-
-      <td className="px-4 py-3 text-right text-green-400 text-xs tabular-nums">
-        {fmtSpeed(t.downloadSpeed)}
-      </td>
-
-      <td className="px-4 py-3 text-right text-blue-400 text-xs tabular-nums">
-        {fmtSpeed(t.uploadSpeed)}
-      </td>
-
-      <td className="px-4 py-3 text-right">
-        <div className="flex justify-end gap-1">
-          {isPaused ? (
-            <button
-              disabled={busy}
-              onClick={() => act(() => resumeTorrent(t.hash))}
-              className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-green-800 text-gray-300 hover:text-green-200 transition-colors disabled:opacity-50"
-            >
-              Resume
-            </button>
-          ) : (
-            <button
-              disabled={busy || t.state === 'seeding' || t.state === 'fetching'}
-              onClick={() => act(() => pauseTorrent(t.hash))}
-              className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-yellow-800 text-gray-300 hover:text-yellow-200 transition-colors disabled:opacity-50"
-            >
-              Pause
-            </button>
+    <li className="group px-5 transition-colors hover:bg-fill-sm">
+      <div className={`py-4 ${last ? '' : 'border-b border-separator'}`}>
+        <div className="flex items-baseline gap-4">
+          <h3 className="min-w-0 flex-1 truncate text-body font-medium" title={t.name || t.hash}>
+            {t.name || t.hash}
+          </h3>
+          {showProgress && !isIndeterminate && (
+            <span className="shrink-0 text-subhead tabular-nums text-secondary">{pct}%</span>
           )}
-          <button
-            disabled={busy}
-            onClick={() => act(() => removeTorrent(t.hash))}
-            className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-red-900 text-gray-300 hover:text-red-300 transition-colors disabled:opacity-50"
-          >
-            Remove
-          </button>
         </div>
-      </td>
-    </tr>
+
+        {showProgress && (
+          <div
+            role="progressbar"
+            aria-valuenow={isIndeterminate ? undefined : pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-fill"
+          >
+            {isIndeterminate ? (
+              <div className="h-full w-2/5 animate-indeterminate rounded-full bg-blue" />
+            ) : (
+              <div
+                className={`h-full rounded-full transition-[width] duration-500 ${isPaused ? 'bg-tertiary' : 'bg-blue'}`}
+                style={{ width: `${pct}%` }}
+              />
+            )}
+          </div>
+        )}
+
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <p className="min-w-0 text-subhead tabular-nums text-secondary">
+            <span className={status.tone}>{status.label}</span>
+            {details.map((d) => (
+              <span key={d}> · {d}</span>
+            ))}
+          </p>
+
+          {/* Row actions reveal on hover for pointer input, and stay visible
+              at touch sizes on narrow screens. */}
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+            {isPaused ? (
+              <RowButton disabled={busy} onClick={() => act(() => resumeTorrent(t.hash))}>
+                Resume
+              </RowButton>
+            ) : (
+              <RowButton
+                disabled={busy || t.state === 'fetching' || t.state === 'checking'}
+                onClick={() => act(() => pauseTorrent(t.hash))}
+              >
+                Pause
+              </RowButton>
+            )}
+            <RowButton disabled={busy} onClick={() => setAskRemove(true)}>
+              Remove
+            </RowButton>
+          </div>
+        </div>
+      </div>
+
+      {/* Removing a torrent is uncommon and can't be undone, so it warrants
+          an alert rather than silent destruction. */}
+      {askRemove && (
+        <Alert
+          title="Remove Torrent?"
+          message={`“${middleTruncate(t.name || t.hash, 60)}” will stop transferring and leave your list. You can choose whether to keep the files that have already downloaded.`}
+          onCancel={() => setAskRemove(false)}
+          actions={[
+            {
+              label: 'Remove, Keep Files',
+              primary: true,
+              onClick: () => { setAskRemove(false); act(() => removeTorrent(t.hash, false)) },
+            },
+            {
+              label: 'Remove and Delete Files',
+              destructive: true,
+              onClick: () => { setAskRemove(false); act(() => removeTorrent(t.hash, true)) },
+            },
+          ]}
+        />
+      )}
+    </li>
+  )
+}
+
+function RowButton({ children, onClick, disabled }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="h-11 rounded-control px-3 text-subhead font-medium text-blue transition hover:bg-fill active:bg-fill-strong disabled:text-tertiary disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-1 focus-visible:outline-blue/50 sm:h-8"
+    >
+      {children}
+    </button>
   )
 }
