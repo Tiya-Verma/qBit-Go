@@ -24,7 +24,7 @@ it and inserts a https://github.com/user-attachments/... link that plays inline.
 Supported: .mp4, .mov, .webm — up to 10 MB (100 MB for GitHub Pro).
 -->
 
-_Demo video coming soon._
+https://github.com/user-attachments/assets/03e133c9-9ce6-4be5-bf57-eaf1628204bf
 
 ## Features
 
