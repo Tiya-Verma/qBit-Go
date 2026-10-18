@@ -4,17 +4,6 @@ qBit-Go is a BitTorrent client written from scratch in Go with no torrent librar
 
 It was built as a systems engineering project: peer-to-peer networking, concurrent protocol implementation, distributed hash tables, and file I/O, assembled into something you can actually download with.
 
-## Technologies Used
-
-- [Go](https://go.dev) 1.26
-- [chi](https://github.com/go-chi/chi) — HTTP router
-- [gorilla/websocket](https://github.com/gorilla/websocket) — real-time stats feed
-- [bbolt](https://github.com/etcd-io/bbolt) — embedded key-value store for torrent state
-- [React](https://react.dev) + [Vite](https://vite.dev)
-- [Tailwind CSS](https://tailwindcss.com)
-- [testify](https://github.com/stretchr/testify) — table-driven tests
-- [Docker](https://www.docker.com) + Docker Compose
-
 ## Demo
 
 <!--
@@ -25,6 +14,17 @@ Supported: .mp4, .mov, .webm — up to 10 MB (100 MB for GitHub Pro).
 -->
 
 https://github.com/user-attachments/assets/03e133c9-9ce6-4be5-bf57-eaf1628204bf
+
+## Technologies Used
+
+- [Go](https://go.dev) 1.26
+- [chi](https://github.com/go-chi/chi) — HTTP router
+- [gorilla/websocket](https://github.com/gorilla/websocket) — real-time stats feed
+- [bbolt](https://github.com/etcd-io/bbolt) — embedded key-value store for torrent state
+- [React](https://react.dev) + [Vite](https://vite.dev)
+- [Tailwind CSS](https://tailwindcss.com)
+- [testify](https://github.com/stretchr/testify) — table-driven tests
+- [Docker](https://www.docker.com) + Docker Compose
 
 ## Features
 
