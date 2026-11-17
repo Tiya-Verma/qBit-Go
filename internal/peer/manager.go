@@ -146,7 +146,12 @@ func (m *Manager) AcceptInbound(c net.Conn) {
 	m.mu.Unlock()
 
 	conn.Send(FormatBitfield(m.bf))
-	go m.tryStartPEX(conn)
+	// Offer PEX here, but leave reading the reply to serveUpload: a second
+	// goroutine reading this socket would swallow the peer's Requests.
+	conn.Send(&Message{
+		ID:      MsgExtended,
+		Payload: append([]byte{extHandshakeMsgID}, buildOurExtHandshake()...),
+	})
 	go m.serveUpload(entry)
 }
 
@@ -247,7 +252,7 @@ func (m *Manager) maybeConnect(addr net.TCPAddr) {
 		c.Send(FormatBitfield(m.bf))
 		m.sched.AddPeerBitfield(c.Bitfield)
 
-		// Do not run tryStartPEX here — it reads from c.conn concurrently with
+		// Do not start a PEX reader here — it reads from c.conn concurrently with
 		// downloadFromPeer, causing a race where the Unchoke message gets stolen.
 		go m.downloadFromPeer(entry)
 	}()
@@ -423,8 +428,12 @@ func (m *Manager) serveUpload(e *connEntry) {
 		c.Close()
 	}()
 
-	// Unchoke the peer so they can request blocks from us.
+	// Unchoke the peer so they can request blocks from us. Choked must agree
+	// with what we told them, or their Requests are dropped below until the
+	// next choke round, and a peer that has already pipelined them never
+	// sends them again.
 	c.Send(&Message{ID: MsgUnchoke})
+	c.Choked = false
 
 	for {
 		msg, err := Read(c.conn)
@@ -464,11 +473,7 @@ func (m *Manager) serveUpload(e *connEntry) {
 			if len(msg.Payload) >= 2 && msg.Payload[0] == extHandshakeMsgID {
 				_, peerPEXID := parseExtHandshakeIDs(msg.Payload[1:])
 				if peerPEXID != 0 {
-					// Peer sent their ext handshake; we respond with ours and start PEX.
-					c.Send(&Message{
-						ID:      MsgExtended,
-						Payload: append([]byte{extHandshakeMsgID}, buildOurExtHandshake()...),
-					})
+					// Peer replied to the ext handshake AcceptInbound sent; start PEX.
 					go runPEX(c, &pexState{
 						peerPEXExtID: peerPEXID,
 						lastKnown:    make(map[string]net.TCPAddr),
@@ -480,50 +485,6 @@ func (m *Manager) serveUpload(e *connEntry) {
 					m.AddPeers(peers)
 				}
 			}
-		}
-	}
-}
-
-// tryStartPEX sends our extension handshake to a freshly connected peer and,
-// if the peer replies supporting ut_pex, starts the periodic PEX goroutine.
-func (m *Manager) tryStartPEX(c *Conn) {
-	c.Send(&Message{
-		ID:      MsgExtended,
-		Payload: append([]byte{extHandshakeMsgID}, buildOurExtHandshake()...),
-	})
-	// The peer's response is handled in the read loop (serveUpload / downloadFromPeer).
-	// For download connections the MsgExtended case in Download() will surface it.
-	// For PEX to work on outbound download connections, we watch for the response here.
-	for {
-		select {
-		case <-c.quit:
-			return
-		default:
-		}
-		msg, err := Read(c.conn)
-		if err != nil {
-			return
-		}
-		if msg == nil {
-			continue
-		}
-		if msg.ID == MsgExtended && len(msg.Payload) >= 2 && msg.Payload[0] == extHandshakeMsgID {
-			_, peerPEXID := parseExtHandshakeIDs(msg.Payload[1:])
-			if peerPEXID != 0 {
-				go runPEX(c, &pexState{
-					peerPEXExtID: peerPEXID,
-					lastKnown:    make(map[string]net.TCPAddr),
-				}, m.getConnectedAddrs)
-			}
-			return
-		}
-		// If the peer sends a PEX message instead of a handshake first, handle it.
-		if msg.ID == MsgExtended && len(msg.Payload) >= 2 && msg.Payload[0] == ourPEXExtID {
-			peers, err := ParsePEXPeers(msg.Payload[1:])
-			if err == nil && len(peers) > 0 {
-				m.AddPeers(peers)
-			}
-			return
 		}
 	}
 }
